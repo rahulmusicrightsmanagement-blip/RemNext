@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import styles from './Landing.module.css'
+import styles from '../styles/Landing.module.css'
 
 function Landing() {
   return (
@@ -17,7 +17,7 @@ function Landing() {
         </p>
         <div className={styles.heroActions}>
           <Link to="/signup" className={styles.btnPrimary}>Find Talent</Link>
-          <Link to="/signup" className={styles.btnOutline}>Start Freelancing</Link>
+          <Link to="/signup" className={styles.btnOutline}>Start Earning</Link>
         </div>
       </section>
 
