@@ -16,11 +16,62 @@ enum Role {
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        String       @id @default(uuid())
   name      String
-  email     String   @unique
+  email     String       @unique
   password  String
-  role      Role     @default(USER)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  role      Role         @default(USER)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  profile   UserProfile?
+}
+
+model UserProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  profilePhoto      String?
+  phoneCode         String?
+  phone             String?
+
+  street            String?
+  road              String?
+  city              String?
+  state             String?
+  country           String?
+  zipCode           String?
+
+  documentType      String?
+  documentValue     String?
+  documentFileData  String?
+
+  resumeUrl         String?
+
+  bankAccountName   String?
+  bankAccountNumber String?
+  bankRoutingNumber String?
+  bankSwiftCode     String?
+  paypalEmail       String?
+  ssnId             String?
+
+  isComplete        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Task {
+  id                   String   @id @default(uuid())
+  name                 String
+  description          String?
+  docLinks             String[]
+  requiresVerification Boolean  @default(false)
+  fullPayment          Float
+  commission           Float
+  userPayment          Float
+  maxRegistrations     Int
+  maxAssignments       Int
+  deadline             DateTime
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }

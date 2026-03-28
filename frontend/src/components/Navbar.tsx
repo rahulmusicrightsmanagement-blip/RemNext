@@ -14,7 +14,7 @@ function Navbar() {
   return (
     <nav className={styles.navbar}>
       <Link to="/" className={styles.logo}>
-        RemNext
+        RemNxt
       </Link>
       <div className={styles.navActions}>
         {user ? (
