@@ -1,20 +1,34 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import styles from './Auth.module.css'
+import { Link, useNavigate } from 'react-router-dom'
+import styles from '../styles/Auth.module.css'
+import { useAuth } from '../context/AuthContext'
 
 function Signup() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const { signup } = useAuth()
+  const navigate = useNavigate()
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password !== confirmPassword) {
-      alert('Passwords do not match')
+      setError('Passwords do not match')
       return
     }
-    console.log('Signup:', { name, email, password })
+    setError('')
+    setSubmitting(true)
+    try {
+      await signup(name, email, password)
+      navigate('/')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Signup failed')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -55,7 +69,10 @@ function Signup() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
           />
-          <button type="submit" className={styles.submitBtn}>Sign Up</button>
+          <button type="submit" className={styles.submitBtn} disabled={submitting}>
+            {submitting ? 'Creating account...' : 'Sign Up'}
+          </button>
+          {error && <p className={styles.errorText}>{error}</p>}
         </form>
         <p className={styles.switchText}>
           Already have an account? <Link to="/login">Login</Link>
