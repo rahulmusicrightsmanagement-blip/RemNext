@@ -6,6 +6,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  profilePhoto?: string | null;
 }
 
 interface AuthContextType {
@@ -14,6 +15,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<User>;
   signup: (name: string, email: string, password: string) => Promise<User>;
   logout: () => void;
+  refreshProfile: () => Promise<void>;
   loading: boolean;
 }
 
@@ -30,14 +32,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    api<{ user: User }>("/auth/me", { token })
-      .then((data) => setUser(data.user))
+    Promise.all([
+      api<{ user: User }>("/auth/me", { token }),
+      api<{ profile: { profilePhoto?: string | null } | null }>("/profile", { token }),
+    ])
+      .then(([userData, profileData]) => {
+        setUser({
+          ...userData.user,
+          profilePhoto: profileData.profile?.profilePhoto ?? null,
+        });
+      })
       .catch(() => {
         localStorage.removeItem("token");
         setToken(null);
       })
       .finally(() => setLoading(false));
   }, [token]);
+
+  const refreshProfile = async () => {
+    if (!token) return;
+    const profileData = await api<{ profile: { profilePhoto?: string | null } | null }>("/profile", { token });
+    setUser((prev) => prev ? { ...prev, profilePhoto: profileData.profile?.profilePhoto ?? null } : prev);
+  };
 
   const login = async (email: string, password: string): Promise<User> => {
     const data = await api<{ token: string; user: User }>("/auth/login", {
@@ -68,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, signup, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, signup, logout, refreshProfile, loading }}>
       {children}
     </AuthContext.Provider>
   );

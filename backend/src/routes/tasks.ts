@@ -4,6 +4,36 @@ import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 
 const router = Router();
 
+// GET /api/tasks/browse — authenticated users: list all available tasks
+router.get(
+  "/browse",
+  authenticate,
+  async (_req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const tasks = await prisma.task.findMany({
+        where: { deadline: { gte: new Date() } },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          docLinks: true,
+          requiresVerification: true,
+          userPayment: true,
+          maxRegistrations: true,
+          deadline: true,
+          createdAt: true,
+          _count: { select: { applications: true } },
+        },
+      });
+      res.json({ tasks });
+    } catch (err) {
+      console.error("Browse tasks error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 // GET /api/tasks — admin: list all tasks
 router.get(
   "/",

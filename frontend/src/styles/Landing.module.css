@@ -51,13 +51,13 @@
   font-size: 58px;
   font-weight: 700;
   line-height: 1.12;
-  color: #2D253C;
+  color: var(--text-heading);
   margin-bottom: 24px;
 }
 
 .heroSub {
   font-size: 17px;
-  color: #58395B;
+  color: var(--text-secondary);
   max-width: 480px;
   margin: 0 auto 48px;
   line-height: 1.75;
@@ -77,7 +77,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(213, 156, 250, 0.6);
-  color: #2D253C;
+  color: var(--text-heading);
   padding: 15px 38px;
   border-radius: 50px;
   font-weight: 600;
@@ -97,7 +97,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1.5px solid rgba(213, 156, 250, 0.55);
-  color: #58395B;
+  color: var(--text-secondary);
   padding: 14px 38px;
   border-radius: 50px;
   font-weight: 600;
@@ -117,7 +117,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(234, 222, 241, 0.6);
-  color: #2D253C;
+  color: var(--text-heading);
   padding: 15px 42px;
   border-radius: 50px;
   font-weight: 700;
@@ -144,7 +144,7 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(213, 156, 250, 0.5);
-  color: #2D253C;
+  color: var(--text-heading);
   padding: 7px 22px;
   border-radius: 50px;
   font-size: 13px;
@@ -157,7 +157,7 @@
 .sectionTitle {
   font-size: 38px;
   font-weight: 700;
-  color: #2D253C;
+  color: var(--text-heading);
   margin-bottom: 56px;
   line-height: 1.2;
 }
@@ -199,6 +199,7 @@
   box-shadow:
     0 0 28px rgba(45, 37, 60, 0.22),
     0 0 56px rgba(213, 156, 250, 0.18),
+    0 0 20px rgba(213, 156, 250, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 
@@ -213,13 +214,13 @@
 .stepCard h3 {
   font-size: 18px;
   font-weight: 600;
-  color: #2D253C;
+  color: var(--text-heading);
   margin-bottom: 12px;
 }
 
 .stepCard p {
   font-size: 14px;
-  color: #58395B;
+  color: var(--text-secondary);
   line-height: 1.75;
 }
 
@@ -252,7 +253,7 @@
 
 .stat p {
   font-size: 14px;
-  color: #2D253C;
+  color: var(--text-heading);
   font-weight: 500;
 }
 
@@ -280,7 +281,7 @@
 
 .ctaSub {
   font-size: 16px;
-  color: #2D253C;
+  color: var(--text-heading);
   margin-bottom: 44px;
   max-width: 420px;
   margin-left: auto;
@@ -317,7 +318,7 @@
 
 .footerTagline {
   font-size: 13px;
-  color: #B0ACB6;
+  color: var(--text-muted);
   line-height: 1.6;
 }
 
@@ -341,7 +342,7 @@
 
 .footerCol p {
   font-size: 13px;
-  color: #B0ACB6;
+  color: var(--text-muted);
   cursor: pointer;
   transition: color 0.2s;
 }
@@ -357,7 +358,7 @@
 
 .footerBottom p {
   font-size: 12px;
-  color: #B0ACB6;
+  color: var(--text-muted);
 }
 
 /* ===== RESPONSIVE ===== */
@@ -405,4 +406,27 @@
   .footer {
     padding: 48px 24px 0;
   }
+}
+
+/* ===== DARK MODE LANDING GRADIENT ===== */
+:global([data-theme="dark"]) .landing {
+  background: linear-gradient(
+    180deg,
+    #1a1225 0%,
+    #1e1630 8%,
+    #221a38 16%,
+    #271e40 24%,
+    #2c2248 32%,
+    #312650 48%,
+    #362a58 55%,
+    #3b2e60 62%,
+    #403268 68%,
+    #453670 73%,
+    #4a3a78 78%,
+    #3e3065 83%,
+    #322652 87%,
+    #261c40 91%,
+    #1e162e 97%,
+    #140e1e 100%
+  );
 }

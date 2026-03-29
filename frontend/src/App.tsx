@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import Navbar from './components/Navbar'
 import Landing from './pages/Landing'
 import Login from './pages/Login'
@@ -9,11 +10,13 @@ import CompleteProfile from './pages/CompleteProfile'
 import AdminDashboard from './pages/AdminDashboard'
 import ManageUsers from './pages/admin/ManageUsers'
 import TaskManagement from './pages/admin/TaskManagement'
+import BrowseProjects from './pages/BrowseProjects'
 import ProtectedRoute from './components/ProtectedRoute'
 
 function App() {
   return (
     <BrowserRouter>
+      <ThemeProvider>
       <AuthProvider>
         <Navbar />
         <Routes>
@@ -25,8 +28,10 @@ function App() {
           <Route path="/admin/users" element={<ProtectedRoute role="ADMIN"><ManageUsers /></ProtectedRoute>} />
           <Route path="/admin/tasks" element={<ProtectedRoute role="ADMIN"><TaskManagement /></ProtectedRoute>} />
           <Route path="/user/profile" element={<ProtectedRoute role="USER"><CompleteProfile /></ProtectedRoute>} />
+          <Route path="/user/projects" element={<ProtectedRoute role="USER"><BrowseProjects /></ProtectedRoute>} />
         </Routes>
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   )
 }

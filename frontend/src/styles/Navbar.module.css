@@ -3,13 +3,14 @@
   justify-content: space-between;
   align-items: center;
   padding: 20px 60px;
-  background: rgba(245, 240, 250, 0.18);
+  background: var(--bg-glass);
   backdrop-filter: blur(24px) saturate(1.4);
   -webkit-backdrop-filter: blur(24px) saturate(1.4);
-  border-bottom: 1px solid rgba(213, 156, 250, 0.12);
+  border-bottom: 1px solid var(--border-light);
   position: sticky;
   top: 0;
   z-index: 100;
+  transition: background 0.3s, border-color 0.3s;
 }
 
 .logo {
@@ -17,6 +18,11 @@
   font-weight: 700;
   color: var(--color-dark);
   letter-spacing: -0.5px;
+  transition: text-shadow 0.3s;
+}
+
+:global([data-theme="dark"]) .logo {
+  text-shadow: 0 0 12px rgba(213, 156, 250, 0.6), 0 0 24px rgba(213, 156, 250, 0.3);
 }
 
 .navActions {
@@ -27,7 +33,7 @@
 
 .loginBtn {
   background: transparent;
-  color: #2D253C;
+  color: var(--text-heading);
   padding: 10px 28px;
   border-radius: 50px;
   font-weight: 600;
@@ -42,8 +48,8 @@
 }
 
 .signupBtn {
-  background: #D59CFA;
-  color: #2D253C;
+  background: var(--color-accent);
+  color: var(--text-heading);
   padding: 10px 28px;
   border-radius: 50px;
   font-weight: 600;
@@ -62,8 +68,273 @@
   color: var(--color-dark);
 }
 
+/* ===== USER MENU (avatar + name + hamburger) ===== */
+.userMenu {
+  position: relative;
+}
+
+.userMenuBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-accent);
+  border-radius: 50px;
+  padding: 5px 14px 5px 5px;
+  cursor: pointer;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+
+.userMenuBtn:hover {
+  background: var(--bg-card-hover);
+  box-shadow: 0 2px 16px rgba(213, 156, 250, 0.2);
+}
+
+.avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(213, 156, 250, 0.5);
+}
+
+.avatarFallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #D59CFA 0%, #a674d1 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* Hamburger icon */
+.hamburger {
+  display: flex;
+  flex-direction: column;
+  gap: 3.5px;
+  margin-left: 4px;
+}
+
+.hamburger span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: var(--text-secondary);
+  border-radius: 2px;
+  transition: transform 0.2s;
+}
+
+/* Dropdown */
+.dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--bg-dropdown);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-accent);
+  border-radius: 14px;
+  box-shadow: var(--shadow-dropdown);
+  padding: 6px 0;
+  z-index: 200;
+  animation: dropIn 0.15s ease-out;
+}
+
+@keyframes dropIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.dropdownItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-heading);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: 'Poppins', sans-serif;
+}
+
+.dropdownItem:hover {
+  background: rgba(213, 156, 250, 0.12);
+}
+
+.dropdownDivider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 4px 12px;
+}
+
+.dropdownLogout {
+  color: #c0392b;
+}
+
+/* ===== NOTIFICATION BELL ===== */
+.notifWrapper {
+  position: relative;
+}
+
+.bellBtn {
+  position: relative;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-heading);
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.bellBtn:hover {
+  background: rgba(213, 156, 250, 0.12);
+}
+
+.bellBadge {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #e53935;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 0 3px;
+}
+
+.notifDropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: -60px;
+  width: 340px;
+  max-height: 420px;
+  background: var(--bg-dropdown);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-accent);
+  border-radius: 14px;
+  box-shadow: var(--shadow-dropdown);
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  animation: dropIn 0.15s ease-out;
+  overflow: hidden;
+}
+
+.notifHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-heading);
+}
+
+.markAllBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: 'Poppins', sans-serif;
+  transition: color 0.15s;
+}
+
+.markAllBtn:hover {
+  color: var(--text-heading);
+}
+
+.notifBody {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.notifEmpty {
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.notifItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.notifItem:last-child { border-bottom: none; }
+
+.notifItem:hover {
+  background: rgba(213, 156, 250, 0.08);
+}
+
+.notifUnread {
+  background: rgba(213, 156, 250, 0.06);
+}
+
+.notifIcon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.notifContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.notifMsg {
+  font-size: 13px;
+  color: var(--text-body);
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
+
+.notifTime {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.notifDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #D59CFA;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
 @media (max-width: 768px) {
   .navbar {
     padding: 16px 24px;
+  }
+  .notifDropdown {
+    right: -120px;
+    width: 300px;
   }
 }
