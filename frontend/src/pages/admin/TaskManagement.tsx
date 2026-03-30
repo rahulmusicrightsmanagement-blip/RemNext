@@ -19,6 +19,43 @@ interface Task {
   createdAt: string
 }
 
+interface ApplicationUser {
+  id: string
+  name: string
+  email: string
+}
+
+interface Application {
+  id: string
+  userId: string
+  taskId: string
+  status: string
+  createdAt: string
+  user: ApplicationUser
+}
+
+interface UserProfile {
+  profilePhoto: string | null
+  phoneCode: string | null
+  phone: string | null
+  city: string | null
+  state: string | null
+  country: string | null
+  documentType: string | null
+  documentFileData: string | null
+  resumeUrl: string | null
+  bankAccountName: string | null
+  bankAccountNumber: string | null
+  bankRoutingNumber: string | null
+  bankSwiftCode: string | null
+  paypalEmail: string | null
+}
+
+interface AppDetail {
+  application: Application & { task: { id: string; name: string } }
+  profile: UserProfile | null
+}
+
 const emptyForm = {
   name: '',
   description: '',
@@ -47,6 +84,16 @@ function TaskManagement() {
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editError, setEditError] = useState('')
 
+  // Applications state
+  const [appsTaskId, setAppsTaskId] = useState<string | null>(null)
+  const [appsTaskName, setAppsTaskName] = useState('')
+  const [applications, setApplications] = useState<Application[]>([])
+  const [appsLoading, setAppsLoading] = useState(false)
+  const [appDetail, setAppDetail] = useState<AppDetail | null>(null)
+  const [appDetailLoading, setAppDetailLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [appCounts, setAppCounts] = useState<Record<string, number>>({})
+
   const userPaymentPreview =
     form.fullPayment && form.commission
       ? (parseFloat(form.fullPayment) * (1 - parseFloat(form.commission) / 100)).toFixed(2)
@@ -59,7 +106,15 @@ function TaskManagement() {
 
   useEffect(() => {
     api<{ tasks: Task[] }>('/tasks', { token: token! })
-      .then(d => setTasks(d.tasks))
+      .then(d => {
+        setTasks(d.tasks)
+        // Fetch app counts for all tasks
+        d.tasks.forEach(t => {
+          api<{ applications: Application[] }>(`/applications/task/${t.id}`, { token: token! })
+            .then(res => setAppCounts(prev => ({ ...prev, [t.id]: res.applications.length })))
+            .catch(() => {})
+        })
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [token])
@@ -171,6 +226,70 @@ function TaskManagement() {
     }
   }
 
+  // ── Application handlers ──
+  const openApplications = async (task: Task) => {
+    setAppsTaskId(task.id)
+    setAppsTaskName(task.name)
+    setAppsLoading(true)
+    try {
+      const data = await api<{ applications: Application[] }>(`/applications/task/${task.id}`, { token: token! })
+      setApplications(data.applications)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setAppsLoading(false)
+    }
+  }
+
+  const openAppDetail = async (appId: string) => {
+    setAppDetailLoading(true)
+    try {
+      const data = await api<AppDetail>(`/applications/${appId}/details`, { token: token! })
+      setAppDetail(data)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setAppDetailLoading(false)
+    }
+  }
+
+  const handleApprove = async (appId: string) => {
+    setActionLoading(appId)
+    try {
+      await api(`/applications/${appId}/approve`, { method: 'PUT', token: token! })
+      // Update local state
+      setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'APPROVED' } : a))
+      if (appDetail?.application.id === appId) {
+        setAppDetail(prev => prev ? { ...prev, application: { ...prev.application, status: 'APPROVED' } } : prev)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleReject = async (appId: string) => {
+    setActionLoading(appId)
+    try {
+      await api(`/applications/${appId}/reject`, { method: 'PUT', token: token! })
+      setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'REJECTED' } : a))
+      if (appDetail?.application.id === appId) {
+        setAppDetail(prev => prev ? { ...prev, application: { ...prev.application, status: 'REJECTED' } } : prev)
+      }
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const statusClass = (status: string) => {
+    if (status === 'APPROVED') return styles.statusApproved
+    if (status === 'REJECTED') return styles.statusRejected
+    return styles.statusPending
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
@@ -203,6 +322,9 @@ function TaskManagement() {
               <span className={styles.taskRowPay}>${task.userPayment} <em>/ person</em></span>
               <span className={styles.taskRowDeadline}>📅 {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
               <div className={styles.taskRowActions}>
+                <button className={styles.appsBtn} onClick={() => openApplications(task)}>
+                  Applications <span className={styles.appsBadge}>{appCounts[task.id] ?? 0}</span>
+                </button>
                 <button className={styles.viewBtn} onClick={() => setViewTask(task)}>View</button>
                 <button className={styles.editBtn} onClick={() => openEditTask(task)}>Edit</button>
                 <button className={styles.deleteBtn} onClick={() => deleteTask(task.id)} disabled={deletingId === task.id}>
@@ -566,6 +688,196 @@ function TaskManagement() {
                 <button type="button" className={styles.cancelBtn} onClick={() => setShowForm(false)}>Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Applications List Modal ── */}
+      {appsTaskId && (
+        <div className={styles.overlay} onClick={() => { setAppsTaskId(null); setApplications([]) }}>
+          <div className={styles.appsModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>Applications — {appsTaskName}</h3>
+              <button className={styles.closeBtn} onClick={() => { setAppsTaskId(null); setApplications([]) }}>✕</button>
+            </div>
+            <div className={styles.appsBody}>
+              {appsLoading ? (
+                <div className={styles.appsEmpty}>Loading applications...</div>
+              ) : applications.length === 0 ? (
+                <div className={styles.appsEmpty}>No applications yet for this task.</div>
+              ) : (
+                applications.map(app => (
+                  <div key={app.id} className={styles.appRow}>
+                    <div className={styles.appAvatar}>{app.user.name.charAt(0).toUpperCase()}</div>
+                    <div className={styles.appInfo}>
+                      <p className={styles.appName}>{app.user.name}</p>
+                      <p className={styles.appEmail}>{app.user.email}</p>
+                    </div>
+                    <span className={`${styles.appStatusBadge} ${statusClass(app.status)}`}>
+                      {app.status}
+                    </span>
+                    <button className={styles.appViewBtn} onClick={() => openAppDetail(app.id)}>View</button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Application Detail Modal ── */}
+      {(appDetail || appDetailLoading) && (
+        <div className={styles.overlay} onClick={() => setAppDetail(null)} style={{ zIndex: 1000 }}>
+          <div className={styles.appDetailModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>Applicant Details</h3>
+              <button className={styles.closeBtn} onClick={() => setAppDetail(null)}>✕</button>
+            </div>
+            {appDetailLoading ? (
+              <div className={styles.appsEmpty}>Loading details...</div>
+            ) : appDetail && (
+              <>
+                <div className={styles.appDetailBody}>
+                  {/* User info */}
+                  <div className={styles.appDetailUser}>
+                    {appDetail.profile?.profilePhoto ? (
+                      <img src={appDetail.profile.profilePhoto} alt="" className={styles.appDetailAvatarLg} />
+                    ) : (
+                      <div className={styles.appDetailAvatarFallback}>
+                        {appDetail.application.user.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className={styles.appDetailUserInfo}>
+                      <h4>{appDetail.application.user.name}</h4>
+                      <p>{appDetail.application.user.email}</p>
+                    </div>
+                  </div>
+
+                  {/* Profile details */}
+                  <div className={styles.appDetailGrid}>
+                    {appDetail.profile?.phone && (
+                      <div className={styles.appDetailItem}>
+                        <span>Phone</span>
+                        <p>{appDetail.profile.phoneCode ?? ''} {appDetail.profile.phone}</p>
+                      </div>
+                    )}
+                    {appDetail.profile?.city && (
+                      <div className={styles.appDetailItem}>
+                        <span>Location</span>
+                        <p>{[appDetail.profile.city, appDetail.profile.state, appDetail.profile.country].filter(Boolean).join(', ')}</p>
+                      </div>
+                    )}
+                    {appDetail.profile?.documentType && (
+                      <div className={styles.appDetailItem}>
+                        <span>ID Document</span>
+                        <p>{appDetail.profile.documentType}</p>
+                      </div>
+                    )}
+                    <div className={styles.appDetailItem}>
+                      <span>Status</span>
+                      <p><span className={`${styles.appStatusBadge} ${statusClass(appDetail.application.status)}`}>{appDetail.application.status}</span></p>
+                    </div>
+                    <div className={styles.appDetailItem}>
+                      <span>Applied On</span>
+                      <p>{new Date(appDetail.application.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                    </div>
+                    <div className={styles.appDetailItem}>
+                      <span>Task</span>
+                      <p>{appDetail.application.task.name}</p>
+                    </div>
+                  </div>
+
+                  {/* Documents */}
+                  <div className={styles.appDetailDocs}>
+                    <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)' }}>Shared Documents</p>
+                    {appDetail.profile?.resumeUrl && (
+                      <a href={appDetail.profile.resumeUrl} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>
+                        📄 Resume / CV
+                      </a>
+                    )}
+                    {appDetail.profile?.documentFileData && (
+                      <a href={appDetail.profile.documentFileData} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>
+                        🪪 ID Document
+                      </a>
+                    )}
+                    {appDetail.profile?.profilePhoto && (
+                      <a href={appDetail.profile.profilePhoto} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>
+                        📸 Profile Photo
+                      </a>
+                    )}
+                    {!appDetail.profile?.resumeUrl && !appDetail.profile?.documentFileData && !appDetail.profile?.profilePhoto && (
+                      <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No documents shared.</p>
+                    )}
+                  </div>
+
+                  {/* Payment Details — shown only for approved applicants */}
+                  {appDetail.application.status === 'APPROVED' && appDetail.profile && (
+                    (appDetail.profile.bankAccountName || appDetail.profile.paypalEmail) ? (
+                      <div className={styles.appDetailDocs}>
+                        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)' }}>Payment Details</p>
+                        <div className={styles.appDetailGrid}>
+                          {appDetail.profile.bankAccountName && (
+                            <div className={styles.appDetailItem}>
+                              <span>Account Name</span>
+                              <p>{appDetail.profile.bankAccountName}</p>
+                            </div>
+                          )}
+                          {appDetail.profile.bankAccountNumber && (
+                            <div className={styles.appDetailItem}>
+                              <span>Account Number</span>
+                              <p>{appDetail.profile.bankAccountNumber}</p>
+                            </div>
+                          )}
+                          {appDetail.profile.bankRoutingNumber && (
+                            <div className={styles.appDetailItem}>
+                              <span>Routing Number</span>
+                              <p>{appDetail.profile.bankRoutingNumber}</p>
+                            </div>
+                          )}
+                          {appDetail.profile.bankSwiftCode && (
+                            <div className={styles.appDetailItem}>
+                              <span>SWIFT Code</span>
+                              <p>{appDetail.profile.bankSwiftCode}</p>
+                            </div>
+                          )}
+                          {appDetail.profile.paypalEmail && (
+                            <div className={styles.appDetailItem}>
+                              <span>PayPal Email</span>
+                              <p>{appDetail.profile.paypalEmail}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={styles.appDetailDocs}>
+                        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)' }}>Payment Details</p>
+                        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No payment details provided.</p>
+                      </div>
+                    )
+                  )}
+                </div>
+
+                {/* Approve / Reject footer */}
+                {appDetail.application.status === 'PENDING' && (
+                  <div className={styles.appDetailFooter}>
+                    <button
+                      className={styles.approveBtn}
+                      onClick={() => handleApprove(appDetail.application.id)}
+                      disabled={actionLoading === appDetail.application.id}
+                    >
+                      {actionLoading === appDetail.application.id ? '...' : '✅ Approve'}
+                    </button>
+                    <button
+                      className={styles.rejectBtn}
+                      onClick={() => handleReject(appDetail.application.id)}
+                      disabled={actionLoading === appDetail.application.id}
+                    >
+                      {actionLoading === appDetail.application.id ? '...' : '❌ Reject'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

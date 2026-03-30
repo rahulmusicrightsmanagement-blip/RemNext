@@ -16,14 +16,16 @@ enum Role {
 }
 
 model User {
-  id        String       @id @default(uuid())
-  name      String
-  email     String       @unique
-  password  String
-  role      Role         @default(USER)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  profile   UserProfile?
+  id            String         @id @default(uuid())
+  name          String
+  email         String         @unique
+  password      String
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  profile       UserProfile?
+  applications  Application[]
+  notifications Notification[]
 }
 
 model UserProfile {
@@ -61,17 +63,49 @@ model UserProfile {
 }
 
 model Task {
-  id                   String   @id @default(uuid())
+  id                   String        @id @default(uuid())
   name                 String
   description          String?
   docLinks             String[]
-  requiresVerification Boolean  @default(false)
+  requiresVerification Boolean       @default(false)
   fullPayment          Float
   commission           Float
   userPayment          Float
   maxRegistrations     Int
   maxAssignments       Int
   deadline             DateTime
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  applications         Application[]
+}
+
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Application {
+  id        String            @id @default(uuid())
+  userId    String
+  taskId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task      Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  status    ApplicationStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([userId, taskId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   String
+  type      String   // "APPROVED" | "REJECTED"
+  taskId    String?
+  taskName  String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { api } from '../lib/api'
+import { api, apiFormData } from '../lib/api'
 import styles from '../styles/Profile.module.css'
 
 /* ─── Constants ─── */
@@ -60,27 +60,28 @@ const COUNTRIES = [
 ]
 
 /* ─── Helpers ─── */
-function compressImage(dataUrl: string, maxDim = 480): Promise<string> {
+function canvasToBlob(canvas: HTMLCanvasElement, type = 'image/jpeg', quality = 0.75): Promise<Blob> {
   return new Promise(resolve => {
+    canvas.toBlob(blob => resolve(blob!), type, quality)
+  })
+}
+
+function compressImageFile(file: File, maxDim = 480): Promise<File> {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file)
     const img = new Image()
-    img.onload = () => {
+    img.onload = async () => {
+      URL.revokeObjectURL(url)
       const scale = Math.min(1, maxDim / Math.max(img.width, img.height))
       const w = Math.round(img.width * scale)
       const h = Math.round(img.height * scale)
       const canvas = document.createElement('canvas')
       canvas.width = w; canvas.height = h
       canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL('image/jpeg', 0.75))
+      const blob = await canvasToBlob(canvas)
+      resolve(new File([blob], file.name, { type: 'image/jpeg' }))
     }
-    img.src = dataUrl
-  })
-}
-
-function fileToBase64(file: File): Promise<string> {
-  return new Promise(resolve => {
-    const reader = new FileReader()
-    reader.onload = e => resolve(e.target!.result as string)
-    reader.readAsDataURL(file)
+    img.src = url
   })
 }
 
@@ -110,7 +111,7 @@ const empty: ProfileData = {
 }
 
 /* ─── Camera Modal ─── */
-function CameraModal({ onCapture, onClose }: { onCapture: (img: string) => void; onClose: () => void }) {
+function CameraModal({ onCapture, onClose }: { onCapture: (file: File) => void; onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -132,10 +133,10 @@ function CameraModal({ onCapture, onClose }: { onCapture: (img: string) => void;
     const canvas = canvasRef.current!
     canvas.width = video.videoWidth; canvas.height = video.videoHeight
     canvas.getContext('2d')!.drawImage(video, 0, 0)
-    const raw = canvas.toDataURL('image/jpeg', 0.9)
-    const compressed = await compressImage(raw, 480)
+    const blob = await canvasToBlob(canvas, 'image/jpeg', 0.9)
+    const file = new File([blob], 'profile-photo.jpg', { type: 'image/jpeg' })
     streamRef.current?.getTracks().forEach(t => t.stop())
-    onCapture(compressed)
+    onCapture(file)
   }
 
   return (
@@ -182,13 +183,28 @@ function CompleteProfile() {
   const docInputRef = useRef<HTMLInputElement>(null)
   const resumeInputRef = useRef<HTMLInputElement>(null)
 
+  // File objects to upload (kept separate from form text data)
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null)
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState('')
+  const [documentFile, setDocumentFile] = useState<File | null>(null)
+  const [documentFilePreview, setDocumentFilePreview] = useState('')
+  const [resumeFile, setResumeFile] = useState<File | null>(null)
+  const [resumeFileName, setResumeFileName] = useState('')
+
   const isUS = form.country === 'United States'
   const set = (key: keyof ProfileData, value: string | boolean) =>
     setForm(f => ({ ...f, [key]: value }))
 
   useEffect(() => {
     api<{ profile: ProfileData | null }>('/profile', { token: token! })
-      .then(d => { if (d.profile) setForm({ ...empty, ...d.profile }) })
+      .then(d => {
+        if (d.profile) {
+          setForm({ ...empty, ...d.profile })
+          if (d.profile.profilePhoto) setProfilePhotoPreview(d.profile.profilePhoto)
+          if (d.profile.documentFileData) setDocumentFilePreview(d.profile.documentFileData)
+          if (d.profile.resumeUrl) setResumeFileName(d.profile.resumeUrl)
+        }
+      })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [token])
@@ -198,8 +214,9 @@ function CompleteProfile() {
     const file = e.target.files?.[0]
     if (!file) return
     if (file.size > 5 * 1024 * 1024) { setError('Resume file must be under 5MB'); return }
-    const b64 = await fileToBase64(file)
-    set('resumeUrl', b64)
+    setResumeFile(file)
+    setResumeFileName(file.name)
+    set('resumeUrl', file.name) // placeholder so validation passes
     e.target.value = ''
   }
 
@@ -207,9 +224,15 @@ function CompleteProfile() {
   const handleDocFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const b64 = await fileToBase64(file)
-    const compressed = await compressImage(b64, 1200)
-    set('documentFileData', compressed)
+    if (file.type.startsWith('image/')) {
+      const compressed = await compressImageFile(file, 1200)
+      setDocumentFile(compressed)
+      setDocumentFilePreview(URL.createObjectURL(compressed))
+    } else {
+      setDocumentFile(file)
+      setDocumentFilePreview('pdf')
+    }
+    set('documentFileData', file.name) // placeholder
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -222,7 +245,7 @@ function CompleteProfile() {
     if (!form.documentType || !form.documentValue) {
       setError('Please select a document type and provide the document number.'); return
     }
-    if (!form.resumeUrl) { setError('Resume link is required.'); return }
+    if (!form.resumeUrl && !resumeFile) { setError('Resume is required — upload a file or paste a link.'); return }
     if (!form.bankAccountName && !form.bankAccountNumber && !form.paypalEmail) {
       setError('Please fill in at least one payment method.'); return
     }
@@ -230,7 +253,61 @@ function CompleteProfile() {
 
     setSubmitting(true)
     try {
-      await api('/profile', { method: 'PUT', token: token!, body: form })
+      const fd = new FormData()
+
+      // Append text fields
+      fd.append('phoneCode', form.phoneCode)
+      fd.append('phone', form.phone)
+      fd.append('street', form.street)
+      fd.append('road', form.road)
+      fd.append('city', form.city)
+      fd.append('state', form.state)
+      fd.append('country', form.country)
+      fd.append('zipCode', form.zipCode)
+      fd.append('documentType', form.documentType)
+      fd.append('documentValue', form.documentValue)
+      fd.append('bankAccountName', form.bankAccountName)
+      fd.append('bankAccountNumber', form.bankAccountNumber)
+      fd.append('bankRoutingNumber', form.bankRoutingNumber)
+      fd.append('bankSwiftCode', form.bankSwiftCode)
+      fd.append('paypalEmail', form.paypalEmail)
+      fd.append('ssnId', form.ssnId)
+
+      // Append files if selected, otherwise signal removal
+      if (profilePhotoFile) {
+        fd.append('profilePhoto', profilePhotoFile)
+      } else if (!profilePhotoPreview) {
+        fd.append('removeProfilePhoto', 'true')
+      }
+
+      if (documentFile) {
+        fd.append('documentFile', documentFile)
+      } else if (!documentFilePreview) {
+        fd.append('removeDocumentFile', 'true')
+      }
+
+      if (resumeFile) {
+        fd.append('resumeFile', resumeFile)
+      } else if (form.resumeUrl && !form.resumeUrl.startsWith('data:') && !resumeFile) {
+        // User pasted a URL
+        fd.append('resumeUrl', form.resumeUrl)
+      } else if (!resumeFileName) {
+        fd.append('removeResume', 'true')
+      }
+
+      const result = await apiFormData<{ profile: ProfileData }>('/profile', {
+        method: 'PUT', formData: fd, token: token!,
+      })
+
+      // Update previews with the S3 URLs returned from the server
+      if (result.profile.profilePhoto) setProfilePhotoPreview(result.profile.profilePhoto)
+      if (result.profile.documentFileData) setDocumentFilePreview(result.profile.documentFileData)
+      if (result.profile.resumeUrl) setResumeFileName(result.profile.resumeUrl)
+      setProfilePhotoFile(null)
+      setDocumentFile(null)
+      setResumeFile(null)
+      setForm({ ...empty, ...result.profile })
+
       setSuccess('Profile saved successfully!')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
@@ -250,7 +327,12 @@ function CompleteProfile() {
     <div className={styles.page}>
       {showCamera && (
         <CameraModal
-          onCapture={img => { set('profilePhoto', img); setShowCamera(false) }}
+          onCapture={file => {
+            setProfilePhotoFile(file)
+            setProfilePhotoPreview(URL.createObjectURL(file))
+            set('profilePhoto', file.name)
+            setShowCamera(false)
+          }}
           onClose={() => setShowCamera(false)}
         />
       )}
@@ -283,8 +365,8 @@ function CompleteProfile() {
           </div>
           <div className={styles.photoRow}>
             <div className={styles.photoPreviewWrap}>
-              {form.profilePhoto
-                ? <img src={form.profilePhoto} alt="Profile" className={styles.photoPreview} />
+              {profilePhotoPreview
+                ? <img src={profilePhotoPreview} alt="Profile" className={styles.photoPreview} />
                 : <div className={styles.photoPlaceholder}>
                     <span style={{ fontSize: 36 }}>👤</span>
                     <span className={styles.photoPlaceholderText}>No photo</span>
@@ -295,8 +377,12 @@ function CompleteProfile() {
               <button type="button" className={styles.photoBtn} onClick={() => setShowCamera(true)}>
                 📷 Take Live Photo
               </button>
-              {form.profilePhoto && (
-                <button type="button" className={styles.photoRemoveBtn} onClick={() => set('profilePhoto', '')}>
+              {profilePhotoPreview && (
+                <button type="button" className={styles.photoRemoveBtn} onClick={() => {
+                  setProfilePhotoFile(null)
+                  setProfilePhotoPreview('')
+                  set('profilePhoto', '')
+                }}>
                   Remove
                 </button>
               )}
@@ -435,17 +521,19 @@ function CompleteProfile() {
             style={{ marginBottom: 14 }}
             onClick={() => resumeInputRef.current?.click()}
           >
-            {form.resumeUrl.startsWith('data:') ? (
+            {(resumeFile || resumeFileName) ? (
               <div className={styles.docPreviewRow}>
                 <span style={{ fontSize: 36 }}>📄</span>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 13, fontWeight: 600, color: '#2D253C', margin: 0 }}>Resume uploaded</p>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#2D253C', margin: 0 }}>
+                    {resumeFile ? resumeFile.name : 'Resume uploaded'}
+                  </p>
                   <p style={{ fontSize: 11, color: '#B0ACB6', margin: '2px 0 0' }}>Click to replace</p>
                 </div>
                 <button
                   type="button"
                   className={styles.docRemoveBtn}
-                  onClick={e => { e.stopPropagation(); set('resumeUrl', '') }}
+                  onClick={e => { e.stopPropagation(); setResumeFile(null); setResumeFileName(''); set('resumeUrl', '') }}
                 >✕ Remove</button>
               </div>
             ) : (
@@ -470,8 +558,8 @@ function CompleteProfile() {
             <input
               type="url"
               placeholder="https://drive.google.com/..."
-              value={form.resumeUrl.startsWith('data:') ? '' : form.resumeUrl}
-              onChange={e => set('resumeUrl', e.target.value)}
+              value={resumeFile ? '' : (resumeFileName?.startsWith('http') ? '' : form.resumeUrl)}
+              onChange={e => { set('resumeUrl', e.target.value); setResumeFile(null); setResumeFileName('') }}
             />
             <span className={styles.fieldNote}>Google Drive, Dropbox, or OneDrive shareable link</span>
           </div>
@@ -520,13 +608,16 @@ function CompleteProfile() {
                   className={styles.docUploadZone}
                   onClick={() => docInputRef.current?.click()}
                 >
-                  {form.documentFileData ? (
+                  {documentFilePreview ? (
                     <div className={styles.docPreviewRow}>
-                      <img src={form.documentFileData} alt="Document" className={styles.docPreviewImg} />
+                      {documentFilePreview === 'pdf'
+                        ? <span style={{ fontSize: 36 }}>📄</span>
+                        : <img src={documentFilePreview} alt="Document" className={styles.docPreviewImg} />
+                      }
                       <button
                         type="button"
                         className={styles.docRemoveBtn}
-                        onClick={e => { e.stopPropagation(); set('documentFileData', '') }}
+                        onClick={e => { e.stopPropagation(); setDocumentFile(null); setDocumentFilePreview(''); set('documentFileData', '') }}
                       >
                         ✕ Remove
                       </button>

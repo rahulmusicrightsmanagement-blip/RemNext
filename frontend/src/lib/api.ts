@@ -31,3 +31,26 @@ export async function api<T = unknown>(endpoint: string, options: ApiOptions = {
 
   return data as T;
 }
+
+/** Send a FormData request (multipart/form-data — no Content-Type header). */
+export async function apiFormData<T = unknown>(
+  endpoint: string,
+  { method = "PUT", formData, token }: { method?: string; formData: FormData; token: string }
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${API_URL}${endpoint}`, {
+    method,
+    headers,
+    body: formData,
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error || "Something went wrong");
+  }
+
+  return data as T;
+}

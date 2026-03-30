@@ -1,11 +1,41 @@
 import { Router, Response } from "express";
+import multer from "multer";
 import prisma from "../lib/prisma";
 import { authenticate, AuthRequest } from "../middleware/auth";
+import { uploadToS3, deleteFromS3 } from "../lib/s3";
 
 const router = Router();
 
-// Increase JSON body limit for base64 images
-// (handled at app level — this route just consumes it)
+// Multer config — store files in memory before uploading to S3
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB per file
+  fileFilter: (_req, file, cb) => {
+    const allowedPhoto = ["image/jpeg", "image/png", "image/webp"];
+    const allowedDoc = [...allowedPhoto, "application/pdf"];
+    const allowedResume = [
+      "application/pdf",
+      "application/msword",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ];
+
+    if (file.fieldname === "profilePhoto" && allowedPhoto.includes(file.mimetype)) {
+      cb(null, true);
+    } else if (file.fieldname === "documentFile" && allowedDoc.includes(file.mimetype)) {
+      cb(null, true);
+    } else if (file.fieldname === "resumeFile" && allowedResume.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Invalid file type for ${file.fieldname}: ${file.mimetype}`));
+    }
+  },
+});
+
+const profileUpload = upload.fields([
+  { name: "profilePhoto", maxCount: 1 },
+  { name: "documentFile", maxCount: 1 },
+  { name: "resumeFile", maxCount: 1 },
+]);
 
 // GET /api/profile — get current user's profile
 router.get(
@@ -24,22 +54,78 @@ router.get(
   }
 );
 
-// PUT /api/profile — create or update current user's profile
+// PUT /api/profile — create or update current user's profile (multipart)
 router.put(
   "/",
   authenticate,
+  profileUpload,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+      const userId = req.user!.userId;
+      const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+
       const {
-        profilePhoto,
         phoneCode, phone,
         street, road, city, state, country, zipCode,
-        documentType, documentValue, documentFileData,
-        resumeUrl,
+        documentType, documentValue,
+        resumeUrl: resumeUrlField, // URL pasted by user (if no file uploaded)
         bankAccountName, bankAccountNumber, bankRoutingNumber, bankSwiftCode,
         paypalEmail,
         ssnId,
       } = req.body;
+
+      // Fetch existing profile to handle old file cleanup
+      const existing = await prisma.userProfile.findUnique({
+        where: { userId },
+      });
+
+      // ── Upload files to S3 ──
+      let profilePhotoUrl = existing?.profilePhoto ?? null;
+      let documentFileUrl = existing?.documentFileData ?? null;
+      let resumeUrl = existing?.resumeUrl ?? null;
+
+      // Profile photo
+      if (files?.profilePhoto?.[0]) {
+        const f = files.profilePhoto[0];
+        // Delete old photo from S3 if it exists
+        if (existing?.profilePhoto) await deleteFromS3(existing.profilePhoto);
+        profilePhotoUrl = await uploadToS3(
+          f.buffer, f.originalname, f.mimetype, "profile-photos", userId
+        );
+      } else if (req.body.removeProfilePhoto === "true") {
+        if (existing?.profilePhoto) await deleteFromS3(existing.profilePhoto);
+        profilePhotoUrl = null;
+      }
+
+      // Document file
+      if (files?.documentFile?.[0]) {
+        const f = files.documentFile[0];
+        if (existing?.documentFileData) await deleteFromS3(existing.documentFileData);
+        documentFileUrl = await uploadToS3(
+          f.buffer, f.originalname, f.mimetype, "documents", userId
+        );
+      } else if (req.body.removeDocumentFile === "true") {
+        if (existing?.documentFileData) await deleteFromS3(existing.documentFileData);
+        documentFileUrl = null;
+      }
+
+      // Resume file
+      if (files?.resumeFile?.[0]) {
+        const f = files.resumeFile[0];
+        if (existing?.resumeUrl?.startsWith("https://")) await deleteFromS3(existing.resumeUrl);
+        resumeUrl = await uploadToS3(
+          f.buffer, f.originalname, f.mimetype, "resumes", userId
+        );
+      } else if (resumeUrlField) {
+        // User pasted a URL instead of uploading a file
+        if (existing?.resumeUrl?.startsWith("https://") && existing.resumeUrl.includes(".s3.")) {
+          await deleteFromS3(existing.resumeUrl);
+        }
+        resumeUrl = resumeUrlField;
+      } else if (req.body.removeResume === "true") {
+        if (existing?.resumeUrl?.startsWith("https://")) await deleteFromS3(existing.resumeUrl);
+        resumeUrl = null;
+      }
 
       const isUS = (country ?? "").toLowerCase().includes("united states") ||
         (country ?? "").toLowerCase() === "us" ||
@@ -55,22 +141,31 @@ router.put(
       );
 
       const data = {
-        profilePhoto: profilePhoto ?? null,
+        profilePhoto: profilePhotoUrl,
         phoneCode: phoneCode ?? null,
-        phone,
-        street, road, city, state, country, zipCode,
-        documentType, documentValue,
-        documentFileData: documentFileData ?? null,
+        phone: phone ?? null,
+        street: street ?? null,
+        road: road ?? null,
+        city: city ?? null,
+        state: state ?? null,
+        country: country ?? null,
+        zipCode: zipCode ?? null,
+        documentType: documentType ?? null,
+        documentValue: documentValue ?? null,
+        documentFileData: documentFileUrl,
         resumeUrl,
-        bankAccountName, bankAccountNumber, bankRoutingNumber, bankSwiftCode,
-        paypalEmail,
-        ssnId,
+        bankAccountName: bankAccountName ?? null,
+        bankAccountNumber: bankAccountNumber ?? null,
+        bankRoutingNumber: bankRoutingNumber ?? null,
+        bankSwiftCode: bankSwiftCode ?? null,
+        paypalEmail: paypalEmail ?? null,
+        ssnId: ssnId ?? null,
         isComplete,
       };
 
       const profile = await prisma.userProfile.upsert({
-        where: { userId: req.user!.userId },
-        create: { userId: req.user!.userId, ...data },
+        where: { userId },
+        create: { userId, ...data },
         update: data,
       });
 
