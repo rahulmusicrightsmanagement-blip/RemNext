@@ -44,7 +44,7 @@ router.get(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const profile = await prisma.userProfile.findUnique({
-        where: { userId: req.user!.userId },
+        where: { userId: req.authPayload!.userId },
       });
       res.json({ profile: profile ?? null });
     } catch (err) {
@@ -61,7 +61,7 @@ router.put(
   profileUpload,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const userId = req.user!.userId;
+      const userId = req.authPayload!.userId;
       const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
 
       const {

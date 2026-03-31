@@ -11,7 +11,7 @@ router.get(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const notifications = await prisma.notification.findMany({
-        where: { userId: req.user!.userId },
+        where: { userId: req.authPayload!.userId },
         orderBy: { createdAt: "desc" },
         take: 50,
       });
@@ -30,7 +30,7 @@ router.get(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const count = await prisma.notification.count({
-        where: { userId: req.user!.userId, read: false },
+        where: { userId: req.authPayload!.userId, read: false },
       });
       res.json({ count });
     } catch (err) {
@@ -50,7 +50,7 @@ router.put(
         where: { id: req.params.id as string },
       });
 
-      if (!notification || notification.userId !== req.user!.userId) {
+      if (!notification || notification.userId !== req.authPayload!.userId) {
         res.status(404).json({ error: "Notification not found" });
         return;
       }
@@ -75,7 +75,7 @@ router.put(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       await prisma.notification.updateMany({
-        where: { userId: req.user!.userId, read: false },
+        where: { userId: req.authPayload!.userId, read: false },
         data: { read: true },
       });
       res.json({ success: true });

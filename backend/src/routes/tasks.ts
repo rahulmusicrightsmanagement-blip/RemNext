@@ -1,23 +1,28 @@
-import { Router, Response } from "express";
+import { Router, Request, Response } from "express";
 import prisma from "../lib/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
 
 const router = Router();
 
-// GET /api/tasks/browse — authenticated users: list all available tasks
+// GET /api/tasks/browse — authenticated users: list tasks matching their profile country
 router.get(
   "/browse",
   authenticate,
-  async (_req: AuthRequest, res: Response): Promise<void> => {
+  async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const tasks = await prisma.task.findMany({
+      const profile = await prisma.userProfile.findUnique({
+        where: { userId: req.authPayload!.userId },
+        select: { country: true },
+      });
+
+      const allTasks = await prisma.task.findMany({
         where: { deadline: { gte: new Date() } },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
           name: true,
           description: true,
-          docLinks: true,
+          country: true,
           requiresVerification: true,
           userPayment: true,
           maxRegistrations: true,
@@ -26,6 +31,15 @@ router.get(
           _count: { select: { applications: true } },
         },
       });
+
+      const userCountry = profile?.country?.trim().toLowerCase();
+      const tasks = userCountry
+        ? allTasks.filter(t =>
+            !t.country ||
+            t.country.split(",").map(c => c.trim().toLowerCase()).includes(userCountry)
+          )
+        : allTasks;
+
       res.json({ tasks });
     } catch (err) {
       console.error("Browse tasks error:", err);
@@ -39,7 +53,7 @@ router.get(
   "/",
   authenticate,
   authorize("ADMIN"),
-  async (_req: AuthRequest, res: Response): Promise<void> => {
+  async (_req: Request, res: Response): Promise<void> => {
     try {
       const tasks = await prisma.task.findMany({
         orderBy: { createdAt: "desc" },
@@ -57,12 +71,12 @@ router.post(
   "/",
   authenticate,
   authorize("ADMIN"),
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
-      const { name, description, docLinks, requiresVerification, fullPayment, commission, maxRegistrations, maxAssignments, deadline } = req.body;
+      const { name, description, country, requiresVerification, fullPayment, commission, maxRegistrations, maxAssignments, deadline } = req.body;
 
-      if (!name || fullPayment == null || commission == null || !maxRegistrations || !maxAssignments || !deadline) {
-        res.status(400).json({ error: "name, fullPayment, commission, maxRegistrations, maxAssignments and deadline are required" });
+      if (!name || fullPayment == null || commission == null || !maxRegistrations || !maxAssignments || !deadline || !country) {
+        res.status(400).json({ error: "name, country, fullPayment, commission, maxRegistrations, maxAssignments and deadline are required" });
         return;
       }
 
@@ -72,7 +86,8 @@ router.post(
         data: {
           name,
           description: description || null,
-          docLinks: Array.isArray(docLinks) ? docLinks.filter((l: string) => l.trim()) : [],
+          docLinks: [],
+          country,
           requiresVerification: Boolean(requiresVerification),
           fullPayment: parseFloat(fullPayment),
           commission: parseFloat(commission),
@@ -96,9 +111,9 @@ router.patch(
   "/:id",
   authenticate,
   authorize("ADMIN"),
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
-      const { name, description, docLinks, requiresVerification, fullPayment, commission, maxRegistrations, maxAssignments, deadline } = req.body;
+      const { name, description, country, requiresVerification, fullPayment, commission, maxRegistrations, maxAssignments, deadline } = req.body;
 
       const userPayment = parseFloat(fullPayment) * (1 - parseFloat(commission) / 100);
 
@@ -107,7 +122,7 @@ router.patch(
         data: {
           name,
           description: description || null,
-          docLinks: Array.isArray(docLinks) ? docLinks.filter((l: string) => l.trim()) : [],
+          country: country || null,
           requiresVerification: Boolean(requiresVerification),
           fullPayment: parseFloat(fullPayment),
           commission: parseFloat(commission),
@@ -131,7 +146,7 @@ router.delete(
   "/:id",
   authenticate,
   authorize("ADMIN"),
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       await prisma.task.delete({ where: { id: req.params.id as string } });
       res.json({ success: true });

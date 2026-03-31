@@ -518,6 +518,154 @@
   padding: 40px !important;
 }
 
+/* ===== PROFILE INCOMPLETE BANNER ===== */
+.profileBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: rgba(213, 156, 250, 0.1);
+  border: 1px solid rgba(213, 156, 250, 0.35);
+  border-radius: 16px;
+  padding: 16px 22px;
+  margin-bottom: 32px;
+}
+
+.bannerLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.bannerIcon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+
+.bannerTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin-bottom: 2px;
+}
+
+.bannerSub {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.bannerBtn {
+  flex-shrink: 0;
+  padding: 9px 20px;
+  border-radius: 50px;
+  border: 1px solid rgba(213, 156, 250, 0.55);
+  background: rgba(213, 156, 250, 0.25);
+  color: var(--text-heading);
+  font-family: 'Poppins', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.bannerBtn:hover {
+  box-shadow: 0 0 16px rgba(213, 156, 250, 0.35);
+  transform: translateY(-1px);
+}
+
+/* ===== LOCKED ACTION CARD ===== */
+.actionCardLocked {
+  opacity: 0.55;
+  pointer-events: none;
+  position: relative;
+  filter: grayscale(0.3);
+}
+
+.lockBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(213, 156, 250, 0.12);
+  border: 1px solid rgba(213, 156, 250, 0.25);
+  border-radius: 50px;
+  padding: 3px 10px;
+  width: fit-content;
+  margin-bottom: 2px;
+}
+
+.lockedHint {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: 8px;
+}
+
+/* ===== PROFILE PROGRESS CARD ===== */
+.profileCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.progressLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: #D59CFA;
+}
+
+.progressBarWrap {
+  width: 100%;
+  height: 6px;
+  background: rgba(213, 156, 250, 0.15);
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 4px 0 2px;
+}
+
+.progressBarFill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #D59CFA, #7c3aed);
+  transition: width 0.5s ease;
+}
+
+.progressSections {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+/* ===== LOCKED SECTION (My Projects / Browse Projects) ===== */
+.lockedSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px dashed rgba(213, 156, 250, 0.25);
+  border-radius: 16px;
+  padding: 64px 24px;
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+.lockedTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.lockedSub {
+  font-size: 13px;
+  color: var(--text-muted);
+  max-width: 360px;
+  line-height: 1.6;
+}
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
   .page {
@@ -544,4 +692,37 @@
   .heading {
     font-size: 24px;
   }
+}
+
+/* ===== VERIFICATION INFO BANNER ===== */
+.verifyInfoBanner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0 24px 4px;
+  padding: 14px 16px;
+  background: rgba(213, 156, 250, 0.08);
+  border: 1px solid rgba(213, 156, 250, 0.25);
+  border-radius: 12px;
+}
+
+.verifyInfoIcon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-accent, #a855f7);
+}
+
+.verifyInfoTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-heading);
+  margin: 0 0 4px;
+}
+
+.verifyInfoSub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.55;
 }

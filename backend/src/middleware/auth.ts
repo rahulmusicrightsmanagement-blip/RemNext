@@ -8,11 +8,17 @@ export interface AuthPayload {
   role: string;
 }
 
-export interface AuthRequest extends Request {
-  user?: AuthPayload;
+// Augment Request with a custom property — avoids collision with passport's req.user
+declare module "express-serve-static-core" {
+  interface Request {
+    authPayload?: AuthPayload;
+  }
 }
 
-export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
+// AuthRequest kept as a type alias so existing imports don't break
+export type AuthRequest = Request;
+
+export function authenticate(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
   if (!header || !header.startsWith("Bearer ")) {
     res.status(401).json({ error: "Authentication required" });
@@ -22,7 +28,7 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
   const token = header.split(" ")[1];
   try {
     const payload = jwt.verify(token, JWT_SECRET) as AuthPayload;
-    req.user = payload;
+    req.authPayload = payload;
     next();
   } catch {
     res.status(401).json({ error: "Invalid or expired token" });
@@ -30,12 +36,12 @@ export function authenticate(req: AuthRequest, res: Response, next: NextFunction
 }
 
 export function authorize(...roles: string[]) {
-  return (req: AuthRequest, res: Response, next: NextFunction): void => {
-    if (!req.user) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    if (!req.authPayload) {
       res.status(401).json({ error: "Authentication required" });
       return;
     }
-    if (!roles.includes(req.user.role)) {
+    if (!roles.includes(req.authPayload.role)) {
       res.status(403).json({ error: "Insufficient permissions" });
       return;
     }

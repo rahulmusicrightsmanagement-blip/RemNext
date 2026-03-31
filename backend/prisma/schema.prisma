@@ -73,6 +73,7 @@ model Task {
   userPayment          Float
   maxRegistrations     Int
   maxAssignments       Int
+  country              String?
   deadline             DateTime
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
@@ -91,9 +92,10 @@ model Application {
   taskId    String
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   task      Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  status    ApplicationStatus @default(PENDING)
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  status             ApplicationStatus @default(PENDING)
+  verificationLinks  String[]          @default([])
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   @@unique([userId, taskId])
 }

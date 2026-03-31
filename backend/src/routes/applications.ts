@@ -1,6 +1,7 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
+import { sendVerificationLinks } from "../lib/mailer";
 
 const router = Router();
 
@@ -10,7 +11,7 @@ router.post(
   authenticate,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const userId = req.user!.userId;
+      const userId = req.authPayload!.userId;
       const taskId = req.params.taskId as string;
 
       // Check task exists
@@ -66,7 +67,7 @@ router.get(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const applications = await prisma.application.findMany({
-        where: { userId: req.user!.userId, status: "APPROVED" },
+        where: { userId: req.authPayload!.userId, status: "APPROVED" },
         include: {
           task: {
             select: {
@@ -96,7 +97,7 @@ router.get(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const applications = await prisma.application.findMany({
-        where: { userId: req.user!.userId },
+        where: { userId: req.authPayload!.userId },
         select: { taskId: true, status: true },
       });
       res.json({ applications });
@@ -159,7 +160,7 @@ router.get(
         where: { userId: application.userId },
       });
 
-      res.json({ application, profile });
+      res.json({ application: { ...application, verificationLinks: application.verificationLinks ?? [] }, profile });
     } catch (err) {
       console.error("Application details error:", err);
       res.status(500).json({ error: "Internal server error" });
@@ -245,6 +246,57 @@ router.put(
     } catch (err) {
       console.error("Reject error:", err);
       res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// POST /api/applications/:id/send-verification — admin: send verification URLs to applicant
+router.post(
+  "/:id/send-verification",
+  authenticate,
+  authorize("ADMIN"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { urls } = req.body as { urls: string[] };
+
+      if (!urls || !Array.isArray(urls) || urls.filter(u => u.trim()).length === 0) {
+        res.status(400).json({ error: "At least one URL is required" });
+        return;
+      }
+
+      const application = await prisma.application.findUnique({
+        where: { id: req.params.id as string },
+        include: {
+          user: { select: { name: true, email: true } },
+          task: { select: { name: true } },
+        },
+      });
+
+      if (!application) {
+        res.status(404).json({ error: "Application not found" });
+        return;
+      }
+
+      const cleanUrls = urls.map(u => u.trim()).filter(Boolean);
+
+      await sendVerificationLinks(
+        application.user.email,
+        application.user.name,
+        application.task.name,
+        cleanUrls
+      );
+
+      // Save sent URLs to the application record (append to existing)
+      const updated = await prisma.application.update({
+        where: { id: req.params.id as string },
+        data: { verificationLinks: { push: cleanUrls } },
+        select: { verificationLinks: true },
+      });
+
+      res.json({ success: true, sentTo: application.user.email, verificationLinks: updated.verificationLinks });
+    } catch (err) {
+      console.error("Send verification error:", err);
+      res.status(500).json({ error: "Failed to send email" });
     }
   }
 );
