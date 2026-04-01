@@ -34,10 +34,11 @@ router.get(
 
       const userCountry = profile?.country?.trim().toLowerCase();
       const tasks = userCountry
-        ? allTasks.filter(t =>
-            !t.country ||
-            t.country.split(",").map(c => c.trim().toLowerCase()).includes(userCountry)
-          )
+        ? allTasks.filter(t => {
+            const country = t.country as string | null;
+            return !country ||
+              country.split(",").map((c: string) => c.trim().toLowerCase()).includes(userCountry);
+          })
         : allTasks;
 
       res.json({ tasks });
@@ -57,6 +58,9 @@ router.get(
     try {
       const tasks = await prisma.task.findMany({
         orderBy: { createdAt: "desc" },
+        include: {
+          manager: { select: { id: true, name: true, email: true } },
+        },
       });
       res.json({ tasks });
     } catch (err) {
@@ -73,7 +77,7 @@ router.post(
   authorize("ADMIN"),
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { name, description, country, requiresVerification, fullPayment, commission, maxRegistrations, maxAssignments, deadline } = req.body;
+      const { name, description, country, requiresVerification, fullPayment, commission, maxRegistrations, maxAssignments, deadline, managerId } = req.body;
 
       if (!name || fullPayment == null || commission == null || !maxRegistrations || !maxAssignments || !deadline || !country) {
         res.status(400).json({ error: "name, country, fullPayment, commission, maxRegistrations, maxAssignments and deadline are required" });
@@ -95,6 +99,10 @@ router.post(
           maxRegistrations: parseInt(maxRegistrations),
           maxAssignments: parseInt(maxAssignments),
           deadline: new Date(deadline),
+          managerId: managerId || null,
+        },
+        include: {
+          manager: { select: { id: true, name: true, email: true } },
         },
       });
 
@@ -113,7 +121,7 @@ router.patch(
   authorize("ADMIN"),
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { name, description, country, requiresVerification, fullPayment, commission, maxRegistrations, maxAssignments, deadline } = req.body;
+      const { name, description, country, requiresVerification, fullPayment, commission, maxRegistrations, maxAssignments, deadline, managerId } = req.body;
 
       const userPayment = parseFloat(fullPayment) * (1 - parseFloat(commission) / 100);
 
@@ -130,6 +138,10 @@ router.patch(
           maxRegistrations: parseInt(maxRegistrations),
           maxAssignments: parseInt(maxAssignments),
           deadline: new Date(deadline),
+          managerId: managerId || null,
+        },
+        include: {
+          manager: { select: { id: true, name: true, email: true } },
         },
       });
 

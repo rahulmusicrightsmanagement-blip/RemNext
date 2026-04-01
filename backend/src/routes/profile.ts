@@ -134,7 +134,6 @@ router.put(
       const isComplete = Boolean(
         phone &&
         street && city && state && country && zipCode &&
-        documentType && documentValue &&
         resumeUrl &&
         ((bankAccountName && bankAccountNumber) || paypalEmail) &&
         (!isUS || ssnId)

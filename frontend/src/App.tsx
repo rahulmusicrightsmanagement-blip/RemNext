@@ -8,6 +8,7 @@ import Signup from './pages/Signup'
 import UserDashboard from './pages/UserDashboard'
 import CompleteProfile from './pages/CompleteProfile'
 import AdminDashboard from './pages/AdminDashboard'
+import ManagerDashboard from './pages/ManagerDashboard'
 import ManageUsers from './pages/admin/ManageUsers'
 import TaskManagement from './pages/admin/TaskManagement'
 import BrowseProjects from './pages/BrowseProjects'
@@ -29,6 +30,7 @@ function App() {
           <Route path="/admin/dashboard" element={<ProtectedRoute role="ADMIN"><AdminDashboard /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute role="ADMIN"><ManageUsers /></ProtectedRoute>} />
           <Route path="/admin/tasks" element={<ProtectedRoute role="ADMIN"><TaskManagement /></ProtectedRoute>} />
+          <Route path="/manager/dashboard" element={<ProtectedRoute role="MANAGER"><ManagerDashboard /></ProtectedRoute>} />
           <Route path="/user/profile" element={<ProtectedRoute role="USER"><CompleteProfile /></ProtectedRoute>} />
           <Route path="/user/projects" element={<ProtectedRoute role="USER"><BrowseProjects /></ProtectedRoute>} />
         </Routes>

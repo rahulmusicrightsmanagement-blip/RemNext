@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext'
 
 interface Props {
   children: React.ReactNode
-  role: 'USER' | 'ADMIN'
+  role: 'USER' | 'MANAGER' | 'ADMIN'
 }
 
 function ProtectedRoute({ children, role }: Props) {
@@ -20,7 +20,12 @@ function ProtectedRoute({ children, role }: Props) {
   if (!user) return <Navigate to="/login" replace />
 
   if (user.role !== role) {
-    return <Navigate to={user.role === 'ADMIN' ? '/admin/dashboard' : '/user/dashboard'} replace />
+    const dashboardMap: Record<string, string> = {
+      ADMIN: '/admin/dashboard',
+      MANAGER: '/manager/dashboard',
+      USER: '/user/dashboard',
+    }
+    return <Navigate to={dashboardMap[user.role] || '/user/dashboard'} replace />
   }
 
   return <>{children}</>

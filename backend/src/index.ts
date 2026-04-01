@@ -7,6 +7,7 @@ import taskRoutes from "./routes/tasks";
 import profileRoutes from "./routes/profile";
 import applicationRoutes from "./routes/applications";
 import notificationRoutes from "./routes/notifications";
+import managerRoutes from "./routes/manager";
 import "./lib/passport"; // initialize passport strategies
 import passport from "passport";
 
@@ -34,6 +35,7 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/profile", profileRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/manager", managerRoutes);
 
 // Health check
 app.get("/api/health", (_req, res) => {

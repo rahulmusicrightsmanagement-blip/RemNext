@@ -25,6 +25,8 @@ interface Task {
   maxAssignments: number
   deadline: string
   createdAt: string
+  managerId?: string | null
+  manager?: { id: string; name: string; email: string } | null
 }
 
 interface ApplicationUser {
@@ -38,6 +40,9 @@ interface Application {
   userId: string
   taskId: string
   status: string
+  mailSent: boolean
+  managerId: string | null
+  manager?: { id: string; name: string; email: string } | null
   createdAt: string
   user: ApplicationUser
 }
@@ -60,7 +65,7 @@ interface UserProfile {
 }
 
 interface AppDetail {
-  application: Application & { task: { id: string; name: string }; verificationLinks: string[] }
+  application: Application & { task: { id: string; name: string; manager?: { id: string; name: string; email: string } }; verificationLinks: string[] }
   profile: UserProfile | null
 }
 
@@ -72,6 +77,7 @@ const emptyForm = {
   maxRegistrations: '',
   maxAssignments: '',
   deadline: '',
+  managerId: '',
 }
 
 function TaskManagement() {
@@ -106,10 +112,8 @@ function TaskManagement() {
   const [appDetailLoading, setAppDetailLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [appCounts, setAppCounts] = useState<Record<string, number>>({})
-  const [verifyUrls, setVerifyUrls] = useState<string[]>([''])
-  const [sendingEmail, setSendingEmail] = useState(false)
-  const [emailSent, setEmailSent] = useState(false)
-  const [emailError, setEmailError] = useState('')
+  const [managersList, setManagersList] = useState<{ id: string; name: string; email: string }[]>([])
+  const [countryFilter, setCountryFilter] = useState('')
 
   const userPaymentPreview =
     form.fullPayment && form.commission
@@ -133,6 +137,10 @@ function TaskManagement() {
       })
       .catch(console.error)
       .finally(() => setLoading(false))
+    // Fetch managers list for assignment dropdown
+    api<{ managers: { id: string; name: string; email: string }[] }>('/applications/managers-list', { token: token! })
+      .then(d => setManagersList(d.managers))
+      .catch(() => {})
   }, [token])
 
   // Close dropdowns on outside click
@@ -171,6 +179,7 @@ function TaskManagement() {
           maxRegistrations: form.maxRegistrations,
           maxAssignments: form.maxAssignments,
           deadline: form.deadline,
+          managerId: form.managerId || undefined,
         },
       })
       setTasks(prev => [data.task, ...prev])
@@ -194,6 +203,7 @@ function TaskManagement() {
       maxRegistrations: String(task.maxRegistrations),
       maxAssignments: String(task.maxAssignments),
       deadline: new Date(task.deadline).toISOString().slice(0, 16),
+      managerId: task.managerId ?? '',
     })
     setEditFormCountries(
       task.country ? task.country.split(',').map(c => c.trim()).filter(Boolean) : []
@@ -224,6 +234,7 @@ function TaskManagement() {
           maxRegistrations: editForm.maxRegistrations,
           maxAssignments: editForm.maxAssignments,
           deadline: editForm.deadline,
+          managerId: editForm.managerId || undefined,
         },
       })
       setTasks(prev => prev.map(t => t.id === data.task.id ? data.task : t))
@@ -264,9 +275,6 @@ function TaskManagement() {
 
   const openAppDetail = async (appId: string) => {
     setAppDetailLoading(true)
-    setVerifyUrls([''])
-    setEmailSent(false)
-    setEmailError('')
     try {
       const data = await api<AppDetail>(`/applications/${appId}/details`, { token: token! })
       setAppDetail(data)
@@ -274,32 +282,6 @@ function TaskManagement() {
       console.error(err)
     } finally {
       setAppDetailLoading(false)
-    }
-  }
-
-  const handleSendVerification = async () => {
-    if (!appDetail) return
-    const cleanUrls = verifyUrls.map(u => u.trim()).filter(Boolean)
-    if (cleanUrls.length === 0) { setEmailError('Add at least one URL.'); return }
-    setSendingEmail(true)
-    setEmailError('')
-    setEmailSent(false)
-    try {
-      const res = await api<{ success: boolean; verificationLinks: string[] }>(
-        `/applications/${appDetail.application.id}/send-verification`,
-        { method: 'POST', token: token!, body: { urls: cleanUrls } }
-      )
-      setEmailSent(true)
-      setVerifyUrls([''])
-      // Update local appDetail with new saved links
-      setAppDetail(prev => prev ? {
-        ...prev,
-        application: { ...prev.application, verificationLinks: res.verificationLinks }
-      } : prev)
-    } catch (err) {
-      setEmailError(err instanceof Error ? err.message : 'Failed to send email')
-    } finally {
-      setSendingEmail(false)
     }
   }
 
@@ -354,6 +336,40 @@ function TaskManagement() {
         <button className={styles.addBtn} onClick={() => setShowForm(true)}>+ Add Task</button>
       </div>
 
+      {/* Country Filter */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>Filter by Region:</label>
+        <select
+          value={countryFilter}
+          onChange={e => setCountryFilter(e.target.value)}
+          style={{
+            padding: '8px 14px', borderRadius: 50, border: '1px solid var(--border-accent)',
+            background: 'var(--bg-input)', color: 'var(--text-body)', fontSize: 13,
+            fontFamily: 'Poppins, sans-serif', cursor: 'pointer', minWidth: 180,
+          }}
+        >
+          <option value="">All Regions</option>
+          {Array.from(new Set(tasks.flatMap(t => t.country ? t.country.split(',').map(c => c.trim()).filter(Boolean) : []))).sort().map(c => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+        {countryFilter && (
+          <button
+            onClick={() => setCountryFilter('')}
+            style={{
+              fontSize: 12, padding: '5px 12px', borderRadius: 50, cursor: 'pointer',
+              border: '1px solid rgba(211,47,47,0.25)', background: 'rgba(211,47,47,0.06)',
+              color: '#c62828', fontFamily: 'Poppins, sans-serif',
+            }}
+          >
+            Clear filter
+          </button>
+        )}
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+          Showing {countryFilter ? tasks.filter(t => t.country?.split(',').map(c => c.trim()).includes(countryFilter)).length : tasks.length} of {tasks.length} tasks
+        </span>
+      </div>
+
       {/* Task List */}
       {loading ? (
         <div className={styles.loadingState}>Loading tasks...</div>
@@ -365,12 +381,15 @@ function TaskManagement() {
         </div>
       ) : (
         <div className={styles.taskList}>
-          {tasks.map((task, i) => (
+          {(countryFilter ? tasks.filter(t => t.country?.split(',').map(c => c.trim()).includes(countryFilter)) : tasks).map((task, i) => (
             <div key={task.id} className={styles.taskRow}>
               <span className={styles.taskRowNum}>{i + 1}</span>
               <span className={styles.taskRowName}>{task.name}</span>
               <span className={styles.taskRowPay}>${task.userPayment} <em>/ person</em></span>
               <span className={styles.taskRowDeadline}>📅 {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+              <span className={styles.taskRowPay} style={{ fontSize: 13, opacity: 0.85 }}>
+                {task.manager ? `👤 ${task.manager.name}` : '—'}
+              </span>
               <div className={styles.taskRowActions}>
                 <button className={styles.appsBtn} onClick={() => openApplications(task)}>
                   Applications <span className={styles.appsBadge}>{appCounts[task.id] ?? 0}</span>
@@ -442,6 +461,13 @@ function TaskManagement() {
                       <span key={c} className={styles.viewCountryTag}>🌍 {c}</span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {viewTask.manager && (
+                <div className={styles.viewSection}>
+                  <p className={styles.viewLabel}>Assigned Manager</p>
+                  <p className={styles.viewValue}>👤 {viewTask.manager.name} ({viewTask.manager.email})</p>
                 </div>
               )}
 
@@ -597,6 +623,20 @@ function TaskManagement() {
                     onChange={e => setEditForm(f => ({ ...f, deadline: e.target.value }))}
                     required
                   />
+                </div>
+
+                <div className={styles.formGroup}>
+                  <label>Assign Manager</label>
+                  <select
+                    value={editForm.managerId}
+                    onChange={e => setEditForm(f => ({ ...f, managerId: e.target.value }))}
+                    style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-accent)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 14 }}
+                  >
+                    <option value="">No manager assigned</option>
+                    {managersList.map(m => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
+                    ))}
+                  </select>
                 </div>
 
                 {editError && <p className={styles.formError}>{editError}</p>}
@@ -761,6 +801,20 @@ function TaskManagement() {
                   />
                 </div>
 
+                <div className={styles.formGroup}>
+                  <label>Assign Manager</label>
+                  <select
+                    value={form.managerId}
+                    onChange={e => setForm(f => ({ ...f, managerId: e.target.value }))}
+                    style={{ padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border-accent)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 14 }}
+                  >
+                    <option value="">No manager assigned</option>
+                    {managersList.map(m => (
+                      <option key={m.id} value={m.id}>{m.name} ({m.email})</option>
+                    ))}
+                  </select>
+                </div>
+
                 {error && <p className={styles.formError}>{error}</p>}
               </div>
 
@@ -795,6 +849,9 @@ function TaskManagement() {
                     <div className={styles.appInfo}>
                       <p className={styles.appName}>{app.user.name}</p>
                       <p className={styles.appEmail}>{app.user.email}</p>
+                      {app.manager && (
+                        <p style={{ fontSize: 11, color: '#38bdf8', marginTop: 2 }}>Manager: {app.manager.name}</p>
+                      )}
                     </div>
                     <span className={`${styles.appStatusBadge} ${statusClass(app.status)}`}>
                       {app.status}
@@ -923,32 +980,20 @@ function TaskManagement() {
 
                   {/* RIGHT — actions */}
                   <div className={styles.adRight}>
-                    <div className={styles.adSection}>
-                      <p className={styles.adSectionTitle}>Send Verification Links</p>
-                      <div className={styles.verifySection}>
-                        {verifyUrls.map((url, i) => (
-                          <div key={i} className={styles.verifyInputRow}>
-                            <input
-                              type="url"
-                              placeholder={`https://verification-link-${i + 1}.com`}
-                              value={url}
-                              onChange={e => setVerifyUrls(prev => prev.map((u, idx) => idx === i ? e.target.value : u))}
-                              className={styles.verifyInput}
-                            />
-                            {verifyUrls.length > 1 && (
-                              <button className={styles.verifyRemoveBtn} onClick={() => setVerifyUrls(prev => prev.filter((_, idx) => idx !== i))}>✕</button>
-                            )}
-                          </div>
-                        ))}
-                        <button className={styles.verifyAddBtn} onClick={() => setVerifyUrls(prev => [...prev, ''])}>+ Add another link</button>
-                        {emailError && <p className={styles.verifyError}>{emailError}</p>}
-                        {emailSent && <p className={styles.verifySuccess}>✅ Email sent successfully!</p>}
-                        <button className={styles.verifySendBtn} onClick={handleSendVerification} disabled={sendingEmail}>
-                          <span>✉</span>
-                          {sendingEmail ? 'Sending...' : 'Send Email to Applicant'}
-                        </button>
+                    {appDetail.application.task.manager && (
+                      <div className={styles.adSection}>
+                        <p className={styles.adSectionTitle}>Task Manager</p>
+                        <p style={{ fontSize: 14, color: 'var(--text-primary)' }}>
+                          👤 {appDetail.application.task.manager.name} ({appDetail.application.task.manager.email})
+                        </p>
                       </div>
-                    </div>
+                    )}
+
+                    {appDetail.application.mailSent && (
+                      <div className={styles.adSection}>
+                        <p className={styles.adSectionTitle} style={{ color: '#4ade80' }}>✉ Mail Sent by Manager</p>
+                      </div>
+                    )}
 
                     {appDetail.application.verificationLinks && appDetail.application.verificationLinks.length > 0 && (
                       <div className={styles.adSection}>
