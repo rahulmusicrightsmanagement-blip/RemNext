@@ -1,14 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { api } from '../../lib/api'
 import styles from '../../styles/AdminPages.module.css'
 
+const COUNTRIES = [
+  'United States','United Kingdom','India','Canada','Australia','Germany','France',
+  'Brazil','Mexico','Japan','China','South Korea','Singapore','UAE','South Africa',
+  'Nigeria','Kenya','Pakistan','Bangladesh','Philippines','Indonesia','Malaysia',
+  'Thailand','New Zealand','Netherlands','Sweden','Norway','Denmark','Switzerland',
+  'Italy','Spain','Portugal','Poland','Argentina','Chile','Colombia','Other',
+]
+
 interface Task {
   id: string
   name: string
   description?: string
-  docLinks: string[]
+  country?: string
   requiresVerification: boolean
   fullPayment: number
   commission: number
@@ -52,15 +60,13 @@ interface UserProfile {
 }
 
 interface AppDetail {
-  application: Application & { task: { id: string; name: string } }
+  application: Application & { task: { id: string; name: string }; verificationLinks: string[] }
   profile: UserProfile | null
 }
 
 const emptyForm = {
   name: '',
   description: '',
-  docLinks: [''],
-  requiresVerification: false,
   fullPayment: '',
   commission: '',
   maxRegistrations: '',
@@ -75,14 +81,21 @@ function TaskManagement() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm)
+  const [formCountries, setFormCountries] = useState<string[]>([])
+  const [countryOpen, setCountryOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [viewTask, setViewTask] = useState<Task | null>(null)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [editForm, setEditForm] = useState(emptyForm)
+  const [editFormCountries, setEditFormCountries] = useState<string[]>([])
+  const [editCountryOpen, setEditCountryOpen] = useState(false)
   const [editSubmitting, setEditSubmitting] = useState(false)
   const [editError, setEditError] = useState('')
+
+  const countryRef = useRef<HTMLDivElement>(null)
+  const editCountryRef = useRef<HTMLDivElement>(null)
 
   // Applications state
   const [appsTaskId, setAppsTaskId] = useState<string | null>(null)
@@ -93,6 +106,10 @@ function TaskManagement() {
   const [appDetailLoading, setAppDetailLoading] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [appCounts, setAppCounts] = useState<Record<string, number>>({})
+  const [verifyUrls, setVerifyUrls] = useState<string[]>([''])
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const [emailSent, setEmailSent] = useState(false)
+  const [emailError, setEmailError] = useState('')
 
   const userPaymentPreview =
     form.fullPayment && form.commission
@@ -108,7 +125,6 @@ function TaskManagement() {
     api<{ tasks: Task[] }>('/tasks', { token: token! })
       .then(d => {
         setTasks(d.tasks)
-        // Fetch app counts for all tasks
         d.tasks.forEach(t => {
           api<{ applications: Application[] }>(`/applications/task/${t.id}`, { token: token! })
             .then(res => setAppCounts(prev => ({ ...prev, [t.id]: res.applications.length })))
@@ -119,16 +135,25 @@ function TaskManagement() {
       .finally(() => setLoading(false))
   }, [token])
 
-  const addDocLink = () => setForm(f => ({ ...f, docLinks: [...f.docLinks, ''] }))
-  const removeDocLink = (i: number) => setForm(f => ({ ...f, docLinks: f.docLinks.filter((_, idx) => idx !== i) }))
-  const updateDocLink = (i: number, val: string) =>
-    setForm(f => ({ ...f, docLinks: f.docLinks.map((l, idx) => idx === i ? val : l) }))
+  // Close dropdowns on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (countryRef.current && !countryRef.current.contains(e.target as Node)) {
+        setCountryOpen(false)
+      }
+      if (editCountryRef.current && !editCountryRef.current.contains(e.target as Node)) {
+        setEditCountryOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   const handleSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault()
     setError('')
-    if (!form.name || !form.fullPayment || !form.commission) {
-      setError('Task name, payment and commission are required.')
+    if (!form.name || !form.fullPayment || !form.commission || formCountries.length === 0) {
+      setError('Task name, country, payment and commission are required.')
       return
     }
     setSubmitting(true)
@@ -139,8 +164,8 @@ function TaskManagement() {
         body: {
           name: form.name,
           description: form.description,
-          docLinks: form.docLinks,
-          requiresVerification: form.requiresVerification,
+          country: formCountries.join(', '),
+          requiresVerification: false,
           fullPayment: form.fullPayment,
           commission: form.commission,
           maxRegistrations: form.maxRegistrations,
@@ -150,6 +175,7 @@ function TaskManagement() {
       })
       setTasks(prev => [data.task, ...prev])
       setForm(emptyForm)
+      setFormCountries([])
       setShowForm(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task')
@@ -163,28 +189,24 @@ function TaskManagement() {
     setEditForm({
       name: task.name,
       description: task.description ?? '',
-      docLinks: task.docLinks.length > 0 ? task.docLinks : [''],
-      requiresVerification: task.requiresVerification,
       fullPayment: String(task.fullPayment),
       commission: String(task.commission),
       maxRegistrations: String(task.maxRegistrations),
       maxAssignments: String(task.maxAssignments),
       deadline: new Date(task.deadline).toISOString().slice(0, 16),
     })
+    setEditFormCountries(
+      task.country ? task.country.split(',').map(c => c.trim()).filter(Boolean) : []
+    )
     setEditError('')
   }
-
-  const addEditDocLink = () => setEditForm(f => ({ ...f, docLinks: [...f.docLinks, ''] }))
-  const removeEditDocLink = (i: number) => setEditForm(f => ({ ...f, docLinks: f.docLinks.filter((_, idx) => idx !== i) }))
-  const updateEditDocLink = (i: number, val: string) =>
-    setEditForm(f => ({ ...f, docLinks: f.docLinks.map((l, idx) => idx === i ? val : l) }))
 
   const handleEditSubmit = async (e: React.SyntheticEvent) => {
     e.preventDefault()
     if (!editTask) return
     setEditError('')
-    if (!editForm.name || !editForm.fullPayment || !editForm.commission) {
-      setEditError('Task name, payment and commission are required.')
+    if (!editForm.name || !editForm.fullPayment || !editForm.commission || editFormCountries.length === 0) {
+      setEditError('Task name, country, payment and commission are required.')
       return
     }
     setEditSubmitting(true)
@@ -195,8 +217,8 @@ function TaskManagement() {
         body: {
           name: editForm.name,
           description: editForm.description,
-          docLinks: editForm.docLinks,
-          requiresVerification: editForm.requiresVerification,
+          country: editFormCountries.join(', '),
+          requiresVerification: false,
           fullPayment: editForm.fullPayment,
           commission: editForm.commission,
           maxRegistrations: editForm.maxRegistrations,
@@ -226,7 +248,6 @@ function TaskManagement() {
     }
   }
 
-  // ── Application handlers ──
   const openApplications = async (task: Task) => {
     setAppsTaskId(task.id)
     setAppsTaskName(task.name)
@@ -243,6 +264,9 @@ function TaskManagement() {
 
   const openAppDetail = async (appId: string) => {
     setAppDetailLoading(true)
+    setVerifyUrls([''])
+    setEmailSent(false)
+    setEmailError('')
     try {
       const data = await api<AppDetail>(`/applications/${appId}/details`, { token: token! })
       setAppDetail(data)
@@ -253,11 +277,36 @@ function TaskManagement() {
     }
   }
 
+  const handleSendVerification = async () => {
+    if (!appDetail) return
+    const cleanUrls = verifyUrls.map(u => u.trim()).filter(Boolean)
+    if (cleanUrls.length === 0) { setEmailError('Add at least one URL.'); return }
+    setSendingEmail(true)
+    setEmailError('')
+    setEmailSent(false)
+    try {
+      const res = await api<{ success: boolean; verificationLinks: string[] }>(
+        `/applications/${appDetail.application.id}/send-verification`,
+        { method: 'POST', token: token!, body: { urls: cleanUrls } }
+      )
+      setEmailSent(true)
+      setVerifyUrls([''])
+      // Update local appDetail with new saved links
+      setAppDetail(prev => prev ? {
+        ...prev,
+        application: { ...prev.application, verificationLinks: res.verificationLinks }
+      } : prev)
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Failed to send email')
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
   const handleApprove = async (appId: string) => {
     setActionLoading(appId)
     try {
       await api(`/applications/${appId}/approve`, { method: 'PUT', token: token! })
-      // Update local state
       setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'APPROVED' } : a))
       if (appDetail?.application.id === appId) {
         setAppDetail(prev => prev ? { ...prev, application: { ...prev.application, status: 'APPROVED' } } : prev)
@@ -290,6 +339,10 @@ function TaskManagement() {
     return styles.statusPending
   }
 
+  const toggleCountry = (c: string, setFn: React.Dispatch<React.SetStateAction<string[]>>) => {
+    setFn(prev => prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c])
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
@@ -315,10 +368,7 @@ function TaskManagement() {
           {tasks.map((task, i) => (
             <div key={task.id} className={styles.taskRow}>
               <span className={styles.taskRowNum}>{i + 1}</span>
-              <span className={styles.taskRowName}>
-                {task.name}
-                {task.requiresVerification && <span className={styles.verifyBadge}>Verified</span>}
-              </span>
+              <span className={styles.taskRowName}>{task.name}</span>
               <span className={styles.taskRowPay}>${task.userPayment} <em>/ person</em></span>
               <span className={styles.taskRowDeadline}>📅 {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
               <div className={styles.taskRowActions}>
@@ -341,10 +391,7 @@ function TaskManagement() {
         <div className={styles.overlay} onClick={() => setViewTask(null)}>
           <div className={styles.viewModal} onClick={e => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <div>
-                <h3>{viewTask.name}</h3>
-                {viewTask.requiresVerification && <span className={styles.verifyBadge}>Requires Verification</span>}
-              </div>
+              <h3>{viewTask.name}</h3>
               <button className={styles.closeBtn} onClick={() => setViewTask(null)}>✕</button>
             </div>
             <div className={styles.viewModalBody}>
@@ -387,14 +434,12 @@ function TaskManagement() {
                 </div>
               </div>
 
-              {viewTask.docLinks.length > 0 && (
+              {viewTask.country && (
                 <div className={styles.viewSection}>
-                  <p className={styles.viewLabel}>Documents</p>
-                  <div className={styles.docLinks}>
-                    {viewTask.docLinks.map((link, i) => (
-                      <a key={i} href={link} target="_blank" rel="noopener noreferrer" className={styles.docLink}>
-                        📄 Document {i + 1}
-                      </a>
+                  <p className={styles.viewLabel}>Countries</p>
+                  <div className={styles.viewCountryTags}>
+                    {viewTask.country.split(',').map(c => c.trim()).filter(Boolean).map(c => (
+                      <span key={c} className={styles.viewCountryTag}>🌍 {c}</span>
                     ))}
                   </div>
                 </div>
@@ -438,31 +483,50 @@ function TaskManagement() {
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label>Document Links</label>
-                  {editForm.docLinks.map((link, i) => (
-                    <div key={i} className={styles.docLinkRow}>
-                      <input
-                        type="url"
-                        placeholder="https://docs.example.com/..."
-                        value={link}
-                        onChange={e => updateEditDocLink(i, e.target.value)}
-                      />
-                      {editForm.docLinks.length > 1 && (
-                        <button type="button" className={styles.removeLinkBtn} onClick={() => removeEditDocLink(i)}>✕</button>
-                      )}
-                    </div>
-                  ))}
-                  <button type="button" className={styles.addLinkBtn} onClick={addEditDocLink}>+ Add Link</button>
+                  <label>Country *</label>
+                  <div className={styles.multiSelectWrapper} ref={editCountryRef}>
+                    <button
+                      type="button"
+                      className={styles.multiSelectTrigger}
+                      onClick={() => setEditCountryOpen(o => !o)}
+                    >
+                      <span>
+                        {editFormCountries.length === 0
+                          ? 'Select countries...'
+                          : `${editFormCountries.length} countr${editFormCountries.length === 1 ? 'y' : 'ies'} selected`}
+                      </span>
+                      <span>{editCountryOpen ? '▴' : '▾'}</span>
+                    </button>
+                    {editFormCountries.length > 0 && (
+                      <div className={styles.multiSelectTags}>
+                        {editFormCountries.map(c => (
+                          <span key={c} className={styles.multiSelectTag}>
+                            {c}
+                            <button
+                              type="button"
+                              className={styles.multiSelectTagRemove}
+                              onClick={() => toggleCountry(c, setEditFormCountries)}
+                            >×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {editCountryOpen && (
+                      <div className={styles.multiSelectDropdown}>
+                        {COUNTRIES.map(c => (
+                          <label key={c} className={styles.multiSelectOption}>
+                            <input
+                              type="checkbox"
+                              checked={editFormCountries.includes(c)}
+                              onChange={() => toggleCountry(c, setEditFormCountries)}
+                            />
+                            {c}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                <label className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={editForm.requiresVerification}
-                    onChange={e => setEditForm(f => ({ ...f, requiresVerification: e.target.checked }))}
-                  />
-                  Requires Verification
-                </label>
 
                 <hr className={styles.formDivider} />
 
@@ -581,31 +645,50 @@ function TaskManagement() {
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label>Document Links</label>
-                  {form.docLinks.map((link, i) => (
-                    <div key={i} className={styles.docLinkRow}>
-                      <input
-                        type="url"
-                        placeholder="https://docs.example.com/..."
-                        value={link}
-                        onChange={e => updateDocLink(i, e.target.value)}
-                      />
-                      {form.docLinks.length > 1 && (
-                        <button type="button" className={styles.removeLinkBtn} onClick={() => removeDocLink(i)}>✕</button>
-                      )}
-                    </div>
-                  ))}
-                  <button type="button" className={styles.addLinkBtn} onClick={addDocLink}>+ Add Link</button>
+                  <label>Country *</label>
+                  <div className={styles.multiSelectWrapper} ref={countryRef}>
+                    <button
+                      type="button"
+                      className={styles.multiSelectTrigger}
+                      onClick={() => setCountryOpen(o => !o)}
+                    >
+                      <span>
+                        {formCountries.length === 0
+                          ? 'Select countries...'
+                          : `${formCountries.length} countr${formCountries.length === 1 ? 'y' : 'ies'} selected`}
+                      </span>
+                      <span>{countryOpen ? '▴' : '▾'}</span>
+                    </button>
+                    {formCountries.length > 0 && (
+                      <div className={styles.multiSelectTags}>
+                        {formCountries.map(c => (
+                          <span key={c} className={styles.multiSelectTag}>
+                            {c}
+                            <button
+                              type="button"
+                              className={styles.multiSelectTagRemove}
+                              onClick={() => toggleCountry(c, setFormCountries)}
+                            >×</button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {countryOpen && (
+                      <div className={styles.multiSelectDropdown}>
+                        {COUNTRIES.map(c => (
+                          <label key={c} className={styles.multiSelectOption}>
+                            <input
+                              type="checkbox"
+                              checked={formCountries.includes(c)}
+                              onChange={() => toggleCountry(c, setFormCountries)}
+                            />
+                            {c}
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-
-                <label className={styles.checkboxLabel}>
-                  <input
-                    type="checkbox"
-                    checked={form.requiresVerification}
-                    onChange={e => setForm(f => ({ ...f, requiresVerification: e.target.checked }))}
-                  />
-                  Requires Verification
-                </label>
 
                 <hr className={styles.formDivider} />
 
@@ -729,17 +812,13 @@ function TaskManagement() {
       {(appDetail || appDetailLoading) && (
         <div className={styles.overlay} onClick={() => setAppDetail(null)} style={{ zIndex: 1000 }}>
           <div className={styles.appDetailModal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h3>Applicant Details</h3>
-              <button className={styles.closeBtn} onClick={() => setAppDetail(null)}>✕</button>
-            </div>
             {appDetailLoading ? (
-              <div className={styles.appsEmpty}>Loading details...</div>
+              <div className={styles.appsEmpty} style={{ padding: 40 }}>Loading details...</div>
             ) : appDetail && (
               <>
-                <div className={styles.appDetailBody}>
-                  {/* User info */}
-                  <div className={styles.appDetailUser}>
+                {/* ── Header ── */}
+                <div className={styles.adHeader}>
+                  <div className={styles.adHeaderLeft}>
                     {appDetail.profile?.profilePhoto ? (
                       <img src={appDetail.profile.profilePhoto} alt="" className={styles.appDetailAvatarLg} />
                     ) : (
@@ -747,135 +826,164 @@ function TaskManagement() {
                         {appDetail.application.user.name.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <div className={styles.appDetailUserInfo}>
-                      <h4>{appDetail.application.user.name}</h4>
-                      <p>{appDetail.application.user.email}</p>
+                    <div>
+                      <p className={styles.adName}>{appDetail.application.user.name}</p>
+                      <p className={styles.adEmail}>{appDetail.application.user.email}</p>
                     </div>
                   </div>
-
-                  {/* Profile details */}
-                  <div className={styles.appDetailGrid}>
-                    {appDetail.profile?.phone && (
-                      <div className={styles.appDetailItem}>
-                        <span>Phone</span>
-                        <p>{appDetail.profile.phoneCode ?? ''} {appDetail.profile.phone}</p>
-                      </div>
-                    )}
-                    {appDetail.profile?.city && (
-                      <div className={styles.appDetailItem}>
-                        <span>Location</span>
-                        <p>{[appDetail.profile.city, appDetail.profile.state, appDetail.profile.country].filter(Boolean).join(', ')}</p>
-                      </div>
-                    )}
-                    {appDetail.profile?.documentType && (
-                      <div className={styles.appDetailItem}>
-                        <span>ID Document</span>
-                        <p>{appDetail.profile.documentType}</p>
-                      </div>
-                    )}
-                    <div className={styles.appDetailItem}>
-                      <span>Status</span>
-                      <p><span className={`${styles.appStatusBadge} ${statusClass(appDetail.application.status)}`}>{appDetail.application.status}</span></p>
-                    </div>
-                    <div className={styles.appDetailItem}>
-                      <span>Applied On</span>
-                      <p>{new Date(appDetail.application.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                    </div>
-                    <div className={styles.appDetailItem}>
-                      <span>Task</span>
-                      <p>{appDetail.application.task.name}</p>
-                    </div>
+                  <div className={styles.adHeaderRight}>
+                    <span className={`${styles.appStatusBadge} ${statusClass(appDetail.application.status)}`}>
+                      {appDetail.application.status}
+                    </span>
+                    <button className={styles.closeBtn} onClick={() => setAppDetail(null)}>✕</button>
                   </div>
-
-                  {/* Documents */}
-                  <div className={styles.appDetailDocs}>
-                    <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)' }}>Shared Documents</p>
-                    {appDetail.profile?.resumeUrl && (
-                      <a href={appDetail.profile.resumeUrl} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>
-                        📄 Resume / CV
-                      </a>
-                    )}
-                    {appDetail.profile?.documentFileData && (
-                      <a href={appDetail.profile.documentFileData} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>
-                        🪪 ID Document
-                      </a>
-                    )}
-                    {appDetail.profile?.profilePhoto && (
-                      <a href={appDetail.profile.profilePhoto} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>
-                        📸 Profile Photo
-                      </a>
-                    )}
-                    {!appDetail.profile?.resumeUrl && !appDetail.profile?.documentFileData && !appDetail.profile?.profilePhoto && (
-                      <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No documents shared.</p>
-                    )}
-                  </div>
-
-                  {/* Payment Details — shown only for approved applicants */}
-                  {appDetail.application.status === 'APPROVED' && appDetail.profile && (
-                    (appDetail.profile.bankAccountName || appDetail.profile.paypalEmail) ? (
-                      <div className={styles.appDetailDocs}>
-                        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)' }}>Payment Details</p>
-                        <div className={styles.appDetailGrid}>
-                          {appDetail.profile.bankAccountName && (
-                            <div className={styles.appDetailItem}>
-                              <span>Account Name</span>
-                              <p>{appDetail.profile.bankAccountName}</p>
-                            </div>
-                          )}
-                          {appDetail.profile.bankAccountNumber && (
-                            <div className={styles.appDetailItem}>
-                              <span>Account Number</span>
-                              <p>{appDetail.profile.bankAccountNumber}</p>
-                            </div>
-                          )}
-                          {appDetail.profile.bankRoutingNumber && (
-                            <div className={styles.appDetailItem}>
-                              <span>Routing Number</span>
-                              <p>{appDetail.profile.bankRoutingNumber}</p>
-                            </div>
-                          )}
-                          {appDetail.profile.bankSwiftCode && (
-                            <div className={styles.appDetailItem}>
-                              <span>SWIFT Code</span>
-                              <p>{appDetail.profile.bankSwiftCode}</p>
-                            </div>
-                          )}
-                          {appDetail.profile.paypalEmail && (
-                            <div className={styles.appDetailItem}>
-                              <span>PayPal Email</span>
-                              <p>{appDetail.profile.paypalEmail}</p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className={styles.appDetailDocs}>
-                        <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--text-muted)' }}>Payment Details</p>
-                        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No payment details provided.</p>
-                      </div>
-                    )
-                  )}
                 </div>
 
-                {/* Approve / Reject footer */}
-                {appDetail.application.status === 'PENDING' && (
-                  <div className={styles.appDetailFooter}>
-                    <button
-                      className={styles.approveBtn}
-                      onClick={() => handleApprove(appDetail.application.id)}
-                      disabled={actionLoading === appDetail.application.id}
-                    >
-                      {actionLoading === appDetail.application.id ? '...' : '✅ Approve'}
-                    </button>
-                    <button
-                      className={styles.rejectBtn}
-                      onClick={() => handleReject(appDetail.application.id)}
-                      disabled={actionLoading === appDetail.application.id}
-                    >
-                      {actionLoading === appDetail.application.id ? '...' : '❌ Reject'}
-                    </button>
+                {/* ── Two-column body ── */}
+                <div className={styles.adBody}>
+                  {/* LEFT — applicant info */}
+                  <div className={styles.adLeft}>
+                    <div className={styles.adSection}>
+                      <p className={styles.adSectionTitle}>Application Info</p>
+                      <div className={styles.appDetailGrid}>
+                        <div className={styles.appDetailItem}>
+                          <span>Task</span>
+                          <p>{appDetail.application.task.name}</p>
+                        </div>
+                        <div className={styles.appDetailItem}>
+                          <span>Applied On</span>
+                          <p>{new Date(appDetail.application.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        </div>
+                        {appDetail.profile?.phone && (
+                          <div className={styles.appDetailItem}>
+                            <span>Phone</span>
+                            <p>{appDetail.profile.phoneCode ?? ''} {appDetail.profile.phone}</p>
+                          </div>
+                        )}
+                        {appDetail.profile?.city && (
+                          <div className={styles.appDetailItem}>
+                            <span>Location</span>
+                            <p>{[appDetail.profile.city, appDetail.profile.state, appDetail.profile.country].filter(Boolean).join(', ')}</p>
+                          </div>
+                        )}
+                        {appDetail.profile?.documentType && (
+                          <div className={styles.appDetailItem}>
+                            <span>ID Document</span>
+                            <p>{appDetail.profile.documentType}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className={styles.adSection}>
+                      <p className={styles.adSectionTitle}>Shared Documents</p>
+                      <div className={styles.appDetailDocs}>
+                        {appDetail.profile?.resumeUrl && (
+                          <a href={appDetail.profile.resumeUrl} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>📄 Resume / CV</a>
+                        )}
+                        {appDetail.profile?.documentFileData && (
+                          <a href={appDetail.profile.documentFileData} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>🪪 ID Document</a>
+                        )}
+                        {appDetail.profile?.profilePhoto && (
+                          <a href={appDetail.profile.profilePhoto} target="_blank" rel="noopener noreferrer" className={styles.appDetailDocLink}>📸 Profile Photo</a>
+                        )}
+                        {!appDetail.profile?.resumeUrl && !appDetail.profile?.documentFileData && !appDetail.profile?.profilePhoto && (
+                          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No documents shared.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {appDetail.application.status === 'APPROVED' && appDetail.profile && (
+                      <div className={styles.adSection}>
+                        <p className={styles.adSectionTitle}>Payment Details</p>
+                        {(appDetail.profile.bankAccountName || appDetail.profile.paypalEmail) ? (
+                          <div className={styles.appDetailGrid}>
+                            {appDetail.profile.bankAccountName && (
+                              <div className={styles.appDetailItem}><span>Account Name</span><p>{appDetail.profile.bankAccountName}</p></div>
+                            )}
+                            {appDetail.profile.bankAccountNumber && (
+                              <div className={styles.appDetailItem}><span>Account Number</span><p>{appDetail.profile.bankAccountNumber}</p></div>
+                            )}
+                            {appDetail.profile.bankRoutingNumber && (
+                              <div className={styles.appDetailItem}><span>Routing Number</span><p>{appDetail.profile.bankRoutingNumber}</p></div>
+                            )}
+                            {appDetail.profile.bankSwiftCode && (
+                              <div className={styles.appDetailItem}><span>SWIFT Code</span><p>{appDetail.profile.bankSwiftCode}</p></div>
+                            )}
+                            {appDetail.profile.paypalEmail && (
+                              <div className={styles.appDetailItem}><span>PayPal Email</span><p>{appDetail.profile.paypalEmail}</p></div>
+                            )}
+                          </div>
+                        ) : (
+                          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>No payment details provided.</p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {/* RIGHT — actions */}
+                  <div className={styles.adRight}>
+                    <div className={styles.adSection}>
+                      <p className={styles.adSectionTitle}>Send Verification Links</p>
+                      <div className={styles.verifySection}>
+                        {verifyUrls.map((url, i) => (
+                          <div key={i} className={styles.verifyInputRow}>
+                            <input
+                              type="url"
+                              placeholder={`https://verification-link-${i + 1}.com`}
+                              value={url}
+                              onChange={e => setVerifyUrls(prev => prev.map((u, idx) => idx === i ? e.target.value : u))}
+                              className={styles.verifyInput}
+                            />
+                            {verifyUrls.length > 1 && (
+                              <button className={styles.verifyRemoveBtn} onClick={() => setVerifyUrls(prev => prev.filter((_, idx) => idx !== i))}>✕</button>
+                            )}
+                          </div>
+                        ))}
+                        <button className={styles.verifyAddBtn} onClick={() => setVerifyUrls(prev => [...prev, ''])}>+ Add another link</button>
+                        {emailError && <p className={styles.verifyError}>{emailError}</p>}
+                        {emailSent && <p className={styles.verifySuccess}>✅ Email sent successfully!</p>}
+                        <button className={styles.verifySendBtn} onClick={handleSendVerification} disabled={sendingEmail}>
+                          <span>✉</span>
+                          {sendingEmail ? 'Sending...' : 'Send Email to Applicant'}
+                        </button>
+                      </div>
+                    </div>
+
+                    {appDetail.application.verificationLinks && appDetail.application.verificationLinks.length > 0 && (
+                      <div className={styles.adSection}>
+                        <p className={styles.adSectionTitle}>Previously Sent Links</p>
+                        <div className={styles.adSentLinks}>
+                          {appDetail.application.verificationLinks.map((link, i) => (
+                            <div key={i} className={styles.adSentLink}>
+                              <span className={styles.adSentLinkNum}>{i + 1}</span>
+                              <a href={link} target="_blank" rel="noopener noreferrer" className={styles.adSentLinkUrl}>{link}</a>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {appDetail.application.status === 'PENDING' && (
+                      <div className={styles.adActions}>
+                        <button
+                          className={styles.approveBtn}
+                          onClick={() => handleApprove(appDetail.application.id)}
+                          disabled={actionLoading === appDetail.application.id}
+                        >
+                          {actionLoading === appDetail.application.id ? '...' : '✅ Approve'}
+                        </button>
+                        <button
+                          className={styles.rejectBtn}
+                          onClick={() => handleReject(appDetail.application.id)}
+                          disabled={actionLoading === appDetail.application.id}
+                        >
+                          {actionLoading === appDetail.application.id ? '...' : '❌ Reject'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </div>

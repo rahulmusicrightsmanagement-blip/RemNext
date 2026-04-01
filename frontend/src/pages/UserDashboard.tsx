@@ -24,11 +24,34 @@ interface MyApplication {
   status: string
 }
 
+interface Profile {
+  phone?: string
+  street?: string; city?: string; state?: string; country?: string; zipCode?: string
+  documentType?: string; documentValue?: string
+  resumeUrl?: string
+  bankAccountName?: string; bankAccountNumber?: string; paypalEmail?: string
+  isComplete?: boolean
+}
+
+function calcProgress(p: Profile | null): { pct: number; done: number; total: number } {
+  if (!p) return { pct: 0, done: 0, total: 5 }
+  const checks = [
+    !!p.phone,
+    !!(p.street && p.city && p.state && p.country && p.zipCode),
+    !!(p.documentType && p.documentValue),
+    !!p.resumeUrl,
+    !!((p.bankAccountName && p.bankAccountNumber) || p.paypalEmail),
+  ]
+  const done = checks.filter(Boolean).length
+  return { pct: Math.round((done / 5) * 100), done, total: 5 }
+}
+
 function UserDashboard() {
   const { user, token } = useAuth()
   const navigate = useNavigate()
   const [projects, setProjects] = useState<ApprovedProject[]>([])
   const [myApps, setMyApps] = useState<MyApplication[]>([])
+  const [profile, setProfile] = useState<Profile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -36,14 +59,19 @@ function UserDashboard() {
     Promise.all([
       api<{ projects: ApprovedProject[] }>('/applications/my-projects', { token }),
       api<{ applications: MyApplication[] }>('/applications/my-applications', { token }),
+      api<{ profile: Profile | null }>('/profile', { token }),
     ])
-      .then(([projData, appData]) => {
+      .then(([projData, appData, profileData]) => {
         setProjects(projData.projects)
         setMyApps(appData.applications)
+        setProfile(profileData.profile)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [token])
+
+  const profileComplete = !!profile?.isComplete
+  const { pct, done, total } = calcProgress(profile)
 
   const totalSent = myApps.length
   const activeCount = projects.length
@@ -67,6 +95,22 @@ function UserDashboard() {
         <span className={styles.roleBadge}>Freelancer</span>
       </div>
 
+      {/* Profile incomplete banner */}
+      {!profileComplete && !loading && (
+        <div className={styles.profileBanner}>
+          <div className={styles.bannerLeft}>
+            <span className={styles.bannerIcon}>🔒</span>
+            <div>
+              <p className={styles.bannerTitle}>Complete your profile to unlock projects</p>
+              <p className={styles.bannerSub}>{done} of {total} sections filled — tasks and browsing are locked until your profile is 100% complete.</p>
+            </div>
+          </div>
+          <button className={styles.bannerBtn} onClick={() => navigate('/user/profile')}>
+            Complete Now →
+          </button>
+        </div>
+      )}
+
       {/* Stats */}
       <div className={styles.statsGrid}>
         {statCards.map((s) => (
@@ -80,16 +124,41 @@ function UserDashboard() {
       {/* Quick Actions */}
       <h2 className={styles.sectionTitle}>Quick Actions</h2>
       <div className={styles.cardGrid}>
-        <div className={styles.actionCard}>
+
+        {/* Browse Projects — locked until profile complete */}
+        <div className={`${styles.actionCard} ${!profileComplete ? styles.actionCardLocked : ''}`}>
+          {!profileComplete && <span className={styles.lockBadge}>🔒 Locked</span>}
           <h3>Browse Projects</h3>
           <p>Find new opportunities matching your skills.</p>
-          <button className={styles.cardBtn} onClick={() => navigate('/user/projects')}>Go →</button>
+          {profileComplete
+            ? <button className={styles.cardBtn} onClick={() => navigate('/user/projects')}>Go →</button>
+            : <span className={styles.lockedHint}>Complete your profile to unlock</span>
+          }
         </div>
+
+        {/* Complete Profile — with progress bar */}
         <div className={styles.actionCard}>
-          <h3>Complete Profile</h3>
-          <p>Verify your documents to unlock all projects.</p>
-          <button className={styles.cardBtn} onClick={() => navigate('/user/profile')}>Go →</button>
+          <div className={styles.profileCardTop}>
+            <h3>Complete Profile</h3>
+            <span className={styles.progressLabel}>{pct}%</span>
+          </div>
+          <p>{profileComplete ? 'Your profile is fully verified.' : 'Verify your documents to unlock all projects.'}</p>
+
+          {/* Progress bar */}
+          <div className={styles.progressBarWrap}>
+            <div
+              className={styles.progressBarFill}
+              style={{ width: `${pct}%`, background: pct === 100 ? '#43a047' : undefined }}
+            />
+          </div>
+          <p className={styles.progressSections}>{done}/{total} sections complete</p>
+
+          <button className={styles.cardBtn} onClick={() => navigate('/user/profile')}>
+            {profileComplete ? 'View Profile →' : 'Continue →'}
+          </button>
         </div>
+
+        {/* View Payouts */}
         <div className={styles.actionCard}>
           <h3>View Payouts</h3>
           <p>Track your earnings and upcoming payments.</p>
@@ -97,10 +166,19 @@ function UserDashboard() {
         </div>
       </div>
 
-      {/* Active Projects */}
+      {/* My Projects */}
       <h2 className={styles.sectionTitle}>My Projects</h2>
       {loading ? (
         <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading projects...</p>
+      ) : !profileComplete ? (
+        <div className={styles.lockedSection}>
+          <span style={{ fontSize: 36 }}>🔒</span>
+          <p className={styles.lockedTitle}>Projects are locked</p>
+          <p className={styles.lockedSub}>Complete your profile to start applying and viewing your projects.</p>
+          <button className={styles.cardBtn} onClick={() => navigate('/user/profile')} style={{ marginTop: 8 }}>
+            Complete Profile →
+          </button>
+        </div>
       ) : projects.length === 0 ? (
         <div className={styles.emptyState}>
           <p className={styles.emptyIcon}>📂</p>
