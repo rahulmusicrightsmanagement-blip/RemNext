@@ -251,8 +251,8 @@ router.patch(
       const id = req.params.id as string;
       const { role } = req.body;
 
-      if (!role || !["USER", "ADMIN"].includes(role)) {
-        res.status(400).json({ error: "Role must be USER or ADMIN" });
+      if (!role || !["USER", "ADMIN", "MANAGER"].includes(role)) {
+        res.status(400).json({ error: "Role must be USER, MANAGER, or ADMIN" });
         return;
       }
 

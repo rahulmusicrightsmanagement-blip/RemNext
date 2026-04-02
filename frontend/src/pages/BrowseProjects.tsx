@@ -25,28 +25,80 @@ interface MyApplication {
 
 const TERMS_CONTENT = [
   {
-    title: '1. User Registration & Onboarding',
-    body: 'User Verification is not must when registering for our website. Once the User has registered on the platform after doing the email authentication, before successfully applying for any project the user will be asked to do a quick Verification using his/her documents.',
+    title: '1. About RemNXT',
+    body: 'RemNXT is an AI-powered task marketplace platform designed to help individuals worldwide earn extra income — without personally investing time in completing tasks. Once a user is registered and verified, our dedicated in-house team performs tasks on the user\'s behalf. The user receives the net payout as displayed on their dashboard. RemNXT is open to users globally, including but not limited to residents of the United States, Russia, the United Kingdom, and other countries, subject to their respective local laws and regulations.',
   },
   {
-    title: '2. Job Matching',
-    body: 'The user will get matched to a job when they successfully completed the onboarding and did the verification well. In some Jobs it might take time due to unavailability of tasks. Some tasks may require video exams which should be solved by the user.',
+    title: '2. Eligibility',
+    body: 'To register on RemNXT, you must: Be at least 18 years of age (or the legal age of majority in your country). Have a valid email address and access to a mobile or desktop device. Not be barred from using such services under the laws of your country. Provide accurate, genuine, and up-to-date personal information. RemNXT reserves the right to deny access to any user who does not meet the above criteria.',
   },
   {
-    title: '3. Compliance',
-    body: 'The user can opt-out from applying their application or if they want to delete their profile permanently. The user should initiate a request on the helpdesk mail: remnxthepl@gmail.com. Once initiated, the request the user\'s account and all his legal documents will be deleted from our end after the upcoming payout dates (might take 2–3 days in case of any public holidays).',
+    title: '3. User Registration & Onboarding',
+    body: 'Registration requires a valid email address and successful email authentication. Document verification is not mandatory at the time of registration. Before applying for any project, users must complete a KYC (Know Your Customer) verification by submitting valid government-issued identity documents. Users from outside India may submit internationally accepted documents such as a Passport, National ID, or Driver\'s License. Submission of fake, expired, or tampered documents will result in immediate and permanent account suspension with no right to appeal.',
   },
   {
-    title: '4. Regulations',
-    body: 'The projects we get are contract based. Once the contract is over the project will not be visible on the dashboard. The User should know that these projects can also be available on other platforms. Since the project goes from a single company to every other platform, and the user has already registered for the particular project on a different platform, they might not get hired here. Repeat applications or use of fake documents will result in permanent suspension of account.',
+    title: '4. Job Matching',
+    body: 'After successful onboarding and KYC verification, users are matched to available projects based on their profile and location. Some projects may have a waiting period due to limited task availability or high demand. Certain projects may require users to complete a short video-based assessment or quiz as part of the eligibility process. RemNXT does not guarantee that every registered user will be matched to a project immediately.',
   },
   {
-    title: '5. User Taskings',
-    body: 'We are a platform helping people out there who cannot invest their time in doing the task and still want to earn extra income. We perform tasks on behalf of our User. The tasks performing needs good accuracy and a lot of time, so our team performing the user\'s task will keep a certain amount as a reward for their hard work.',
+    title: '5. Task Execution — How RemNXT Works',
+    body: 'Tasks listed on the RemNXT platform are performed exclusively by RemNXT\'s own employed team members. No third-party contractors or external individuals are involved. All tasks are carried out solely by full-time RemNXT employees who are trained, verified, and directly employed by RemNXT. Every employee is bound by a Non-Disclosure Agreement (NDA) and strict internal confidentiality policy. User login credentials are never requested, accessed, stored, or shared with any employee or third party under any circumstance. Tasks are completed entirely through RemNXT\'s own internal systems. Any individual claiming to be from RemNXT and asking for your login credentials should be reported immediately to remnxthepl@gmail.com.',
   },
   {
-    title: '6. Payments / Payout',
-    body: 'The user will receive the payment shown on the project as the tasks available on the user\'s dashboard are completed by us. We charge a certain amount in % as our commission on tasking. Though there won\'t be any cut-off below the payrate shown on dashboard. (If payrate is shown as $10 per hour, the user will receive the $10 per hour rate. The payrates shown are already after cutting our commission.)',
+    title: '5.3 Task Compensation',
+    body: 'Tasks require considerable time, skill, and accuracy. As compensation, RemNXT retains a commission percentage from the gross task payment. The payrate shown on the user\'s dashboard is the final net amount the user will receive — our commission has already been deducted before display. Example: If a project shows a payrate of \u20B9500 or $10, the user will receive exactly that amount. No further deductions will be made below the displayed rate.',
+  },
+  {
+    title: '6. Commission-Based Task Structure & Platform Legitimacy',
+    body: 'RemNXT is a legitimate, service-based task outsourcing platform. Clients contract RemNXT to complete specific AI-related data tasks such as image annotation, data labeling, content review, and similar work. RemNXT is NOT associated with: Gambling or Games of Chance, Multi-Level Marketing (MLM) or Pyramid Schemes, Passive Income Fraud or Get-Rich-Quick Schemes, or Investment Platforms. Commission typically ranges between 20% – 40% of the gross task value depending on project nature and complexity. The payrate on the dashboard is the final net amount — no hidden charges apply.',
+  },
+  {
+    title: '7. Payments & Payouts',
+    body: 'Payouts are processed on a scheduled payout cycle as defined per project. The net payrate displayed is the exact amount the user will receive upon successful task completion. Payments are transferred via the user\'s registered payout method (Bank Transfer, UPI, PayPal, Wise, or other supported methods depending on country). RemNXT is not responsible for delays caused by third-party payment processors, banking systems, or international transfer restrictions. Users are responsible for any taxes, duties, or levies applicable in their home country.',
+  },
+  {
+    title: '8. Refund & Dispute Policy',
+    body: 'Since RemNXT performs tasks through its own employees, refunds are not applicable once a task has been assigned and work has commenced. Payout disputes must be raised within 7 days of the scheduled payout date by contacting remnxthepl@gmail.com. Disputes raised after 7 days will not be entertained. RemNXT will investigate all valid disputes and respond within 5–7 business days. RemNXT reserves the right to make the final decision on all disputes.',
+  },
+  {
+    title: '9. Project Availability & Compliance',
+    body: 'Projects and tasks on RemNXT are sourced from established third-party AI platforms and task marketplaces, including platforms such as Outlier AI, CrowdGen, Handshake AI, and similar organizations. RemNXT acts as an intermediary platform that aggregates these opportunities. All projects are contract-based. Once a client contract ends, it will be automatically removed from the dashboard. Duplicate or repeat applications for the same project will result in disqualification and may lead to account suspension.',
+  },
+  {
+    title: '10. Intellectual Property',
+    body: 'All content, design, branding, software, logos, and materials on RemNXT are the exclusive intellectual property of RemNXT protected under Indian and international IP laws. Users are granted a limited, non-transferable, non-exclusive license to access and use the platform solely for personal income generation. Violation of intellectual property rights will result in immediate account termination and may lead to legal action.',
+  },
+  {
+    title: '11. Privacy Policy',
+    body: 'RemNXT collects: Full name, email, phone number, date of birth, government-issued identity documents (for KYC), bank or payment details, device information, IP address, and usage data. RemNXT does not sell your personal data to third parties. Data may be shared with payment processors, KYC partners, and legal authorities only when required. Upon account deletion, all personal data and documents will be permanently deleted after the next scheduled payout date. International users acknowledge that data may be stored and processed in India.',
+  },
+  {
+    title: '12. Limitation of Liability',
+    body: 'RemNXT provides its platform and services "as is" without any warranties, express or implied. RemNXT is not liable for any indirect, incidental, consequential, or punitive damages. RemNXT\'s total liability shall not exceed the total amount paid out to that user in the 30 days preceding the claim. RemNXT is not responsible for loss of income due to project unavailability, delays in payment by third-party providers, account suspension from violations, or technical downtime.',
+  },
+  {
+    title: '13. Account Suspension & Termination',
+    body: 'RemNXT reserves the right to suspend or permanently terminate a user\'s account without prior notice for: Submission of fake, forged, or invalid documents. Duplicate or fraudulent applications. Violation of any section of these Terms and Conditions. Any activity deemed harmful to the platform, its clients, or other users. Suspended users forfeit any pending payouts if the suspension is due to misconduct.',
+  },
+  {
+    title: '14. Account Deletion & Opt-Out',
+    body: 'Users may request permanent deletion of their account at any time by emailing: remnxthepl@gmail.com. Upon receiving the request, RemNXT will process any pending payouts on the next scheduled payout date. The account and all associated documents will be permanently deleted within 2–3 business days after the payout.',
+  },
+  {
+    title: '15. Warranties & Disclaimer',
+    body: 'RemNXT does not promise, guarantee, or represent any fixed, minimum, or assured income. Earnings are entirely dependent on: availability of contracted projects, successful completion of tasks, and the applicable commission rate. RemNXT does not warrant that the platform will be available 24/7 without interruption. The platform and all services are provided on an "as is" and "as available" basis.',
+  },
+  {
+    title: '16. Confidentiality',
+    body: 'All project-related content, task data, client information, and materials accessed through RemNXT are strictly confidential. Users agree not to disclose, share, reproduce, or distribute any project details to any third party. Any breach will result in immediate and permanent account suspension. RemNXT reserves the right to pursue legal action and claim damages against any user found in breach.',
+  },
+  {
+    title: '17. Modifications to Terms',
+    body: 'RemNXT reserves the right to update, modify, or replace these Terms and Conditions at any time. Users will be notified of material changes via email at least 7 days before the changes take effect. Continued use of the platform after changes are effective constitutes acceptance of the revised Terms.',
+  },
+  {
+    title: '18. Contact Us',
+    body: 'Email: remnxthepl@gmail.com | Website: www.remnxt.com | Support Hours: Monday – Friday, 10:00 AM – 6:00 PM IST',
   },
 ]
 
@@ -199,7 +251,8 @@ function BrowseProjects() {
             </div>
             <div className={authStyles.modalBody}>
               <p className={authStyles.modalIntro}>
-                By applying for this project, you agree to the following terms. Please read carefully before proceeding.
+                <strong>Platform:</strong> RemNXT &nbsp;|&nbsp; <strong>Effective Date:</strong> March 28, 2026 &nbsp;|&nbsp; <strong>Website:</strong> www.remnxt.com<br />
+                By registering, accessing, or using the RemNXT platform, you confirm that you have read, understood, and agreed to these Terms and Conditions in full. If you do not agree, please discontinue use of the platform immediately.
               </p>
               {TERMS_CONTENT.map((section) => (
                 <div key={section.title} className={authStyles.termsSection}>
@@ -208,7 +261,8 @@ function BrowseProjects() {
                 </div>
               ))}
               <p className={authStyles.termsFootnote}>
-                Clicking "I Accept & Apply" confirms you have read and agreed to all terms above.
+                By registering on RemNXT and completing the onboarding process, you confirm that you have read, understood, and agreed to all of the above Terms and Conditions.<br />
+                &copy; 2026 RemNXT. All Rights Reserved. Platform open to global users.
               </p>
 
               {/* Checkbox */}

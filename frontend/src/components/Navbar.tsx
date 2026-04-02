@@ -169,7 +169,12 @@ function Navbar() {
                   className={styles.dropdownItem}
                   onClick={() => {
                     setMenuOpen(false)
-                    navigate(user.role === 'ADMIN' ? '/admin/dashboard' : '/user/dashboard')
+                    const dashMap: Record<string, string> = {
+                      ADMIN: '/admin/dashboard',
+                      MANAGER: '/manager/dashboard',
+                      USER: '/user/dashboard',
+                    }
+                    navigate(dashMap[user.role] || '/user/dashboard')
                   }}
                 >
                   Dashboard

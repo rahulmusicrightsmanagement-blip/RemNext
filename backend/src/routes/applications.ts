@@ -1,7 +1,6 @@
 import { Router, Response } from "express";
 import prisma from "../lib/prisma";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
-import { sendVerificationLinks } from "../lib/mailer";
 
 const router = Router();
 
@@ -49,7 +48,7 @@ router.post(
       }
 
       const application = await prisma.application.create({
-        data: { userId, taskId },
+        data: { userId, taskId, managerId: task.managerId || undefined },
       });
 
       res.status(201).json({ application });
@@ -60,7 +59,7 @@ router.post(
   }
 );
 
-// GET /api/applications/my-projects — user's approved projects
+// GET /api/applications/my-projects — user's approved projects with hours
 router.get(
   "/my-projects",
   authenticate,
@@ -79,10 +78,20 @@ router.get(
               docLinks: true,
             },
           },
+          hoursLogs: {
+            select: { hours: true, note: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+          },
         },
         orderBy: { createdAt: "desc" },
       });
-      res.json({ projects: applications });
+
+      const projects = applications.map((a) => ({
+        ...a,
+        totalHours: a.hoursLogs.reduce((sum, l) => sum + l.hours, 0),
+      }));
+
+      res.json({ projects });
     } catch (err) {
       console.error("My projects error:", err);
       res.status(500).json({ error: "Internal server error" });
@@ -108,7 +117,7 @@ router.get(
   }
 );
 
-// GET /api/applications/task/:taskId — admin: get applications for a task
+// GET /api/applications/task/:taskId — admin: get applications for a task (only mailSent=true ones for approve/reject)
 router.get(
   "/task/:taskId",
   authenticate,
@@ -116,9 +125,12 @@ router.get(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const applications = await prisma.application.findMany({
-        where: { taskId: req.params.taskId as string },
+        where: { taskId: req.params.taskId as string, mailSent: true },
         include: {
           user: {
+            select: { id: true, name: true, email: true },
+          },
+          manager: {
             select: { id: true, name: true, email: true },
           },
         },
@@ -146,7 +158,7 @@ router.get(
             select: { id: true, name: true, email: true, createdAt: true },
           },
           task: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, manager: { select: { id: true, name: true, email: true } } },
           },
         },
       });
@@ -250,53 +262,97 @@ router.put(
   }
 );
 
-// POST /api/applications/:id/send-verification — admin: send verification URLs to applicant
-router.post(
-  "/:id/send-verification",
+// GET /api/applications/pending-all — admin: get all pending applications (with assignment info)
+router.get(
+  "/pending-all",
   authenticate,
   authorize("ADMIN"),
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (_req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { urls } = req.body as { urls: string[] };
-
-      if (!urls || !Array.isArray(urls) || urls.filter(u => u.trim()).length === 0) {
-        res.status(400).json({ error: "At least one URL is required" });
-        return;
-      }
-
-      const application = await prisma.application.findUnique({
-        where: { id: req.params.id as string },
+      const applications = await prisma.application.findMany({
+        where: { status: "PENDING" },
         include: {
-          user: { select: { name: true, email: true } },
-          task: { select: { name: true } },
+          user: { select: { id: true, name: true, email: true } },
+          task: { select: { id: true, name: true } },
+          manager: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+      res.json({ applications });
+    } catch (err) {
+      console.error("Pending all error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// GET /api/applications/managers-overview — admin: get all managers with their task assignments
+router.get(
+  "/managers-overview",
+  authenticate,
+  authorize("ADMIN"),
+  async (_req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const managers = await prisma.user.findMany({
+        where: { role: "MANAGER" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          managedTasks: {
+            select: {
+              id: true,
+              name: true,
+              applications: {
+                include: {
+                  user: { select: { id: true, name: true, email: true } },
+                },
+              },
+            },
+          },
         },
       });
 
-      if (!application) {
-        res.status(404).json({ error: "Application not found" });
-        return;
-      }
+      const result = managers.map((m) => ({
+        id: m.id,
+        name: m.name,
+        email: m.email,
+        assignedCount: m.managedTasks.length,
+        users: m.managedTasks.flatMap((t) =>
+          t.applications.map((a) => ({
+            id: a.user.id,
+            name: a.user.name,
+            email: a.user.email,
+            taskName: t.name,
+            status: a.status,
+          }))
+        ),
+      }));
 
-      const cleanUrls = urls.map(u => u.trim()).filter(Boolean);
-
-      await sendVerificationLinks(
-        application.user.email,
-        application.user.name,
-        application.task.name,
-        cleanUrls
-      );
-
-      // Save sent URLs to the application record (append to existing)
-      const updated = await prisma.application.update({
-        where: { id: req.params.id as string },
-        data: { verificationLinks: { push: cleanUrls } },
-        select: { verificationLinks: true },
-      });
-
-      res.json({ success: true, sentTo: application.user.email, verificationLinks: updated.verificationLinks });
+      res.json({ managers: result });
     } catch (err) {
-      console.error("Send verification error:", err);
-      res.status(500).json({ error: "Failed to send email" });
+      console.error("Managers overview error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// GET /api/applications/managers-list — admin: get all managers for assignment dropdown
+router.get(
+  "/managers-list",
+  authenticate,
+  authorize("ADMIN"),
+  async (_req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const managers = await prisma.user.findMany({
+        where: { role: "MANAGER" },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: "asc" },
+      });
+      res.json({ managers });
+    } catch (err) {
+      console.error("Managers list error:", err);
+      res.status(500).json({ error: "Internal server error" });
     }
   }
 );

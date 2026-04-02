@@ -12,6 +12,7 @@ datasource db {
 
 enum Role {
   USER
+  MANAGER
   ADMIN
 }
 
@@ -26,6 +27,11 @@ model User {
   profile       UserProfile?
   applications  Application[]
   notifications Notification[]
+  // Applications managed by this user (when role=MANAGER)
+  managedApplications Application[] @relation("ManagerApplications")
+  hoursLogs     HoursLog[]     @relation("ManagerHoursLogs")
+  // Tasks managed by this user (when role=MANAGER)
+  managedTasks  Task[]         @relation("TaskManager")
 }
 
 model UserProfile {
@@ -78,6 +84,8 @@ model Task {
   createdAt            DateTime      @default(now())
   updatedAt            DateTime      @updatedAt
   applications         Application[]
+  managerId            String?
+  manager              User?         @relation("TaskManager", fields: [managerId], references: [id], onDelete: SetNull)
 }
 
 enum ApplicationStatus {
@@ -94,10 +102,25 @@ model Application {
   task      Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
   status             ApplicationStatus @default(PENDING)
   verificationLinks  String[]          @default([])
+  mailSent           Boolean           @default(false)
+  managerId          String?
+  manager            User?             @relation("ManagerApplications", fields: [managerId], references: [id], onDelete: SetNull)
+  hoursLogs          HoursLog[]
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
   @@unique([userId, taskId])
+}
+
+model HoursLog {
+  id            String      @id @default(uuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  managerId     String
+  manager       User        @relation("ManagerHoursLogs", fields: [managerId], references: [id], onDelete: Cascade)
+  hours         Float
+  note          String?
+  createdAt     DateTime    @default(now())
 }
 
 model Notification {

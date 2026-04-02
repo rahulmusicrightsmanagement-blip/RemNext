@@ -8,6 +8,7 @@ interface ApprovedProject {
   id: string
   taskId: string
   status: string
+  totalHours: number
   createdAt: string
   task: {
     id: string
@@ -27,23 +28,21 @@ interface MyApplication {
 interface Profile {
   phone?: string
   street?: string; city?: string; state?: string; country?: string; zipCode?: string
-  documentType?: string; documentValue?: string
   resumeUrl?: string
   bankAccountName?: string; bankAccountNumber?: string; paypalEmail?: string
   isComplete?: boolean
 }
 
 function calcProgress(p: Profile | null): { pct: number; done: number; total: number } {
-  if (!p) return { pct: 0, done: 0, total: 5 }
+  if (!p) return { pct: 0, done: 0, total: 4 }
   const checks = [
     !!p.phone,
     !!(p.street && p.city && p.state && p.country && p.zipCode),
-    !!(p.documentType && p.documentValue),
     !!p.resumeUrl,
     !!((p.bankAccountName && p.bankAccountNumber) || p.paypalEmail),
   ]
   const done = checks.filter(Boolean).length
-  return { pct: Math.round((done / 5) * 100), done, total: 5 }
+  return { pct: Math.round((done / 4) * 100), done, total: 4 }
 }
 
 function UserDashboard() {
@@ -199,6 +198,9 @@ function UserDashboard() {
               <div className={styles.projectMeta}>
                 <span>📅 {new Date(p.task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                 <span style={{ color: '#43a047' }}>✅ Approved</span>
+              </div>
+              <div className={styles.projectMeta} style={{ marginTop: 4 }}>
+                <span>⏱ Hours Logged: <strong>{p.totalHours ?? 0}</strong></span>
               </div>
               {p.task.docLinks.length > 0 && (
                 <div className={styles.projectLinks}>

@@ -47,18 +47,18 @@ function Landing() {
       {/* Stats */}
       <section className={styles.stats}>
         <div className={styles.stat}>
-          <h2>500K+</h2>
-          <p>Verified Freelancers</p>
+          <h2>95%</h2>
+          <p>Chance of Getting Hired</p>
         </div>
         <div className={styles.statDivider} />
         <div className={styles.stat}>
-          <h2>80+</h2>
-          <p>Countries Supported</p>
+          <h2>$5K+</h2>
+          <p>Monthly Earning</p>
         </div>
         <div className={styles.statDivider} />
         <div className={styles.stat}>
-          <h2>$1B+</h2>
-          <p>Paid Out to Freelancers</p>
+          <h2>1K+</h2>
+          <p>Active Users</p>
         </div>
       </section>
 
