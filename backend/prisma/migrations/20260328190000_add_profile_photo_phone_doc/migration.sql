@@ -1,3 +1,0 @@
-ALTER TABLE "UserProfile" ADD COLUMN IF NOT EXISTS "profilePhoto" TEXT;
-ALTER TABLE "UserProfile" ADD COLUMN IF NOT EXISTS "phoneCode" TEXT;
-ALTER TABLE "UserProfile" ADD COLUMN IF NOT EXISTS "documentFileData" TEXT;

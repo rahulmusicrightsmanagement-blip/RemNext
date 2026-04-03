@@ -4,7 +4,8 @@ import jwt from "jsonwebtoken";
 import prisma from "../lib/prisma";
 import { Role } from "../../generated/prisma/client";
 import { authenticate, authorize, AuthRequest } from "../middleware/auth";
-import { sendOtpEmail } from "../lib/mailer";
+import { sendOtpEmail, sendPasswordResetEmail } from "../lib/mailer";
+import crypto from "crypto";
 import passport from "../lib/passport";
 
 const router = Router();
@@ -92,7 +93,7 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
     otpStore.delete(email);
 
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
-      expiresIn: "7d",
+      expiresIn: "1d",
     });
 
     res.status(201).json({
@@ -101,6 +102,63 @@ router.post("/verify-otp", async (req: Request, res: Response): Promise<void> =>
     });
   } catch (err) {
     console.error("Verify OTP error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/auth/forgot-password
+router.post("/forgot-password", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body;
+    if (!email) { res.status(400).json({ error: "Email is required" }); return; }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    // Always return success to prevent email enumeration
+    if (!user) { res.json({ message: "If that email exists, a reset link has been sent." }); return; }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await prisma.user.update({
+      where: { email },
+      data: { resetToken: token, resetTokenExpiry: expiry },
+    });
+
+    const resetUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/reset-password?token=${token}`;
+    await sendPasswordResetEmail(email, user.name, resetUrl);
+
+    res.json({ message: "If that email exists, a reset link has been sent." });
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post("/reset-password", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) { res.status(400).json({ error: "Token and password are required" }); return; }
+    if (password.length < 8) { res.status(400).json({ error: "Password must be at least 8 characters" }); return; }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: { gt: new Date() },
+      },
+    });
+
+    if (!user) { res.status(400).json({ error: "Invalid or expired reset link. Please request a new one." }); return; }
+
+    const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { password: hashed, resetToken: null, resetTokenExpiry: null },
+    });
+
+    res.json({ message: "Password reset successfully. You can now log in." });
+  } catch (err) {
+    console.error("Reset password error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -123,7 +181,7 @@ router.get(
     const token = jwt.sign(
       { userId: user.id, role: user.role },
       JWT_SECRET,
-      { expiresIn: "7d" }
+      { expiresIn: "1d" }
     );
     res.redirect(
       `http://localhost:5173/auth/callback?token=${token}&role=${user.role}`
@@ -153,7 +211,7 @@ router.post("/signup", async (req: Request, res: Response): Promise<void> => {
     });
 
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
-      expiresIn: "7d",
+      expiresIn: "1d",
     });
 
     res.status(201).json({
@@ -189,7 +247,7 @@ router.post("/login", async (req: Request, res: Response): Promise<void> => {
     }
 
     const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, {
-      expiresIn: "7d",
+      expiresIn: "1d",
     });
 
     res.json({

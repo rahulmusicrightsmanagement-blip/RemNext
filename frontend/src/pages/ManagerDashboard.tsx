@@ -37,6 +37,17 @@ interface DashboardStats {
   taskCards: TaskCard[]
 }
 
+interface UserProfile {
+  user: { id: string; name: string; email: string; role: string; createdAt: string }
+  profile: {
+    phoneCode?: string; phone?: string
+    street?: string; road?: string; city?: string; state?: string; country?: string; zipCode?: string
+    resumeUrl?: string
+    bankAccountName?: string; paypalEmail?: string
+    profilePhoto?: string
+  } | null
+}
+
 interface HoursLog {
   id: string
   hours: number
@@ -57,6 +68,10 @@ function ManagerDashboard() {
   const [sendingVerification, setSendingVerification] = useState(false)
   const [verifySuccess, setVerifySuccess] = useState('')
   const [verifyError, setVerifyError] = useState('')
+
+  // User profile modal state
+  const [viewUser, setViewUser] = useState<UserProfile | null>(null)
+  const [loadingUser, setLoadingUser] = useState(false)
 
   // Hours logging state
   const [hoursApp, setHoursApp] = useState<ManagerApp | null>(null)
@@ -142,6 +157,17 @@ function ManagerDashboard() {
     } finally {
       setLoggingHours(false)
     }
+  }
+
+  const openUserProfile = async (userId: string) => {
+    if (!token) return
+    setLoadingUser(true)
+    setViewUser(null)
+    try {
+      const data = await api<UserProfile>(`/manager/users/${userId}/profile`, { token })
+      setViewUser(data)
+    } catch { /* ignore */ }
+    finally { setLoadingUser(false) }
   }
 
   const getTaskApps = (taskId: string) => applications.filter(a => a.taskId === taskId)
@@ -260,7 +286,8 @@ function ManagerDashboard() {
                           {taskApps.map((app, i) => (
                             <tr key={app.id} style={{ borderTop: '1px solid var(--border-light)' }}>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)' }}>{i + 1}</td>
-                              <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--text-heading)' }}>{app.user.name}</td>
+                              <td style={{ padding: '8px 10px', fontWeight: 600, color: 'var(--color-accent)', cursor: 'pointer', textDecoration: 'underline dotted' }}
+                                onClick={() => openUserProfile(app.user.id)}>{app.user.name}</td>
                               <td style={{ padding: '8px 10px', color: 'var(--text-muted)', fontSize: 12 }}>{app.user.email}</td>
                               <td style={{ padding: '8px 10px' }}>
                                 <span style={{
@@ -284,6 +311,12 @@ function ManagerDashboard() {
                                     <button className={adminStyles.viewBtn} style={{ fontSize: 11, padding: '4px 10px' }}
                                       onClick={() => { setSelectedApp(app); setVerifyUrls(['']); setVerifySuccess(''); setVerifyError('') }}>
                                       Send Mail
+                                    </button>
+                                  )}
+                                  {app.mailSent && (
+                                    <button className={adminStyles.viewBtn} style={{ fontSize: 11, padding: '4px 10px' }}
+                                      onClick={() => { setSelectedApp(app); setVerifyUrls(['']); setVerifySuccess(''); setVerifyError('') }}>
+                                      View Links
                                     </button>
                                   )}
                                   {app.status === 'APPROVED' && (
@@ -350,6 +383,30 @@ function ManagerDashboard() {
 
               {verifyError && <p style={{ color: '#c62828', fontSize: 12, marginTop: 8 }}>{verifyError}</p>}
               {verifySuccess && <p style={{ color: '#43a047', fontSize: 12, marginTop: 8 }}>{verifySuccess}</p>}
+
+              {selectedApp.verificationLinks.length > 0 && (
+                <div style={{ marginTop: 16, borderTop: '1px solid var(--border-light)', paddingTop: 14 }}>
+                  <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
+                    Previously Sent Links
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {selectedApp.verificationLinks.map((link, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg-card)', borderRadius: 8, padding: '7px 12px' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>#{i + 1}</span>
+                        <a
+                          href={link}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ fontSize: 12, color: 'var(--color-accent)', textDecoration: 'none', wordBreak: 'break-all', flex: 1 }}
+                        >
+                          {link}
+                        </a>
+                        <span style={{ fontSize: 10, color: '#4ade80', fontWeight: 600, flexShrink: 0 }}>✉ Sent</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             <div className={adminStyles.modalFooter}>
               <button
@@ -360,6 +417,107 @@ function ManagerDashboard() {
                 {sendingVerification ? 'Sending...' : 'Send Verification Email'}
               </button>
               <button className={adminStyles.closeOutlineBtn} onClick={() => setSelectedApp(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Profile Modal */}
+      {(loadingUser || viewUser) && (
+        <div className={adminStyles.overlay} onClick={() => { setViewUser(null); setLoadingUser(false) }}>
+          <div className={adminStyles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: 480 }}>
+            <div className={adminStyles.modalHeader}>
+              <h3>User Profile</h3>
+              <button className={adminStyles.closeBtn} onClick={() => { setViewUser(null); setLoadingUser(false) }}>✕</button>
+            </div>
+            <div className={adminStyles.modalBody}>
+              {loadingUser ? (
+                <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: 24 }}>Loading...</p>
+              ) : viewUser && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Identity */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <div style={{
+                      width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+                      background: 'rgba(213,156,250,0.15)', border: '2px solid rgba(213,156,250,0.4)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 22, fontWeight: 700, color: 'var(--text-secondary)', overflow: 'hidden',
+                    }}>
+                      {viewUser.profile?.profilePhoto
+                        ? <img src={viewUser.profile.profilePhoto} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : viewUser.user.name.charAt(0).toUpperCase()
+                      }
+                    </div>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: 'var(--text-heading)' }}>{viewUser.user.name}</p>
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>{viewUser.user.email}</p>
+                      <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        Joined {new Date(viewUser.user.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {viewUser.profile ? (
+                    <>
+                      {/* Contact */}
+                      {viewUser.profile.phone && (
+                        <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '12px 16px' }}>
+                          <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Contact</p>
+                          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-body)' }}>
+                            📞 {viewUser.profile.phoneCode} {viewUser.profile.phone}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Address */}
+                      {viewUser.profile.city && (
+                        <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '12px 16px' }}>
+                          <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Address</p>
+                          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-body)', lineHeight: 1.6 }}>
+                            {[viewUser.profile.street, viewUser.profile.road, viewUser.profile.city, viewUser.profile.state, viewUser.profile.zipCode, viewUser.profile.country]
+                              .filter(Boolean).join(', ')}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Resume */}
+                      {viewUser.profile.resumeUrl && (
+                        <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '12px 16px' }}>
+                          <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Resume</p>
+                          <a
+                            href={viewUser.profile.resumeUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ fontSize: 13, color: 'var(--color-accent)', textDecoration: 'none', fontWeight: 600 }}
+                          >
+                            📄 View Resume →
+                          </a>
+                        </div>
+                      )}
+
+                      {/* Payment */}
+                      {(viewUser.profile.bankAccountName || viewUser.profile.paypalEmail) && (
+                        <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '12px 16px' }}>
+                          <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Payment</p>
+                          {viewUser.profile.bankAccountName && (
+                            <p style={{ margin: '0 0 2px', fontSize: 13, color: 'var(--text-body)' }}>🏦 {viewUser.profile.bankAccountName}</p>
+                          )}
+                          {viewUser.profile.paypalEmail && (
+                            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-body)' }}>💙 {viewUser.profile.paypalEmail}</p>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'center', padding: 8 }}>
+                      This user hasn't completed their profile yet.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className={adminStyles.modalFooter}>
+              <button className={adminStyles.closeOutlineBtn} onClick={() => { setViewUser(null); setLoadingUser(false) }}>Close</button>
             </div>
           </div>
         </div>

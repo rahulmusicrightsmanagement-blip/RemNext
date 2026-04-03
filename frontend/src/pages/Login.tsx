@@ -72,6 +72,11 @@ function Login() {
             {submitting ? 'Signing in...' : 'Login'}
           </button>
           {error && <p className={styles.errorText}>{error}</p>}
+          <p style={{ textAlign: 'right', marginTop: 10 }}>
+            <Link to="/forgot-password" style={{ fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none' }}>
+              Forgot password?
+            </Link>
+          </p>
         </form>
         <div className={styles.divider}><span>or</span></div>
 
