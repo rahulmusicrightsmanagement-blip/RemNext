@@ -42,7 +42,7 @@ async function sendMail(subject: string, to: string, html: string): Promise<void
       body: JSON.stringify({
         message: {
           subject,
-          from: { emailAddress: { address: SENDER_EMAIL } },
+          from: { emailAddress: { name: "RemNxt", address: SENDER_EMAIL } },
           body: { contentType: "HTML", content: html },
           toRecipients: [{ emailAddress: { address: to } }],
         },
