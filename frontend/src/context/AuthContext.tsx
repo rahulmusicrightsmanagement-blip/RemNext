@@ -25,7 +25,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem("token"));
+  const [token, setToken] = useState<string | null>(() => sessionStorage.getItem("token"));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
       })
       .catch(() => {
-        localStorage.removeItem("token");
+        sessionStorage.removeItem("token");
         setToken(null);
       })
       .finally(() => setLoading(false));
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: { email, password },
     });
-    localStorage.setItem("token", data.token);
+    sessionStorage.setItem("token", data.token);
     setToken(data.token);
     setUser(data.user);
     return data.user;
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: { email, otp },
     });
-    localStorage.setItem("token", data.token);
+    sessionStorage.setItem("token", data.token);
     setToken(data.token);
     setUser(data.user);
     return data.user;
@@ -91,14 +91,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       method: "POST",
       body: { name, email, password },
     });
-    localStorage.setItem("token", data.token);
+    sessionStorage.setItem("token", data.token);
     setToken(data.token);
     setUser(data.user);
     return data.user;
   };
 
   const logout = () => {
-    localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
     setToken(null);
     setUser(null);
   };

@@ -181,7 +181,15 @@ function Navbar() {
                 </button>
                 <button
                   className={styles.dropdownItem}
-                  onClick={() => { setMenuOpen(false); navigate('/user/profile') }}
+                  onClick={() => {
+                    setMenuOpen(false)
+                    const profileMap: Record<string, string> = {
+                      ADMIN: '/admin/profile',
+                      MANAGER: '/manager/profile',
+                      USER: '/user/profile',
+                    }
+                    navigate(profileMap[user.role] || '/user/profile')
+                  }}
                 >
                   Edit Profile
                 </button>

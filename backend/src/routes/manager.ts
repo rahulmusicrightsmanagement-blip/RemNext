@@ -258,4 +258,44 @@ router.get(
   }
 );
 
+// GET /api/manager/users/:id/profile — get a user's profile (must be assigned to manager's task)
+router.get(
+  "/users/:id/profile",
+  authenticate,
+  authorize("MANAGER"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const managerId = req.authPayload!.userId;
+      const userId = req.params.id as string;
+
+      // Verify this user has applied to one of the manager's tasks
+      const application = await prisma.application.findFirst({
+        where: {
+          userId,
+          task: { managerId },
+        },
+      });
+
+      if (!application) {
+        res.status(403).json({ error: "User is not assigned to your tasks" });
+        return;
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, name: true, email: true, role: true, createdAt: true },
+      });
+
+      const profile = await prisma.userProfile.findUnique({
+        where: { userId },
+      });
+
+      res.json({ user, profile: profile ?? null });
+    } catch (err) {
+      console.error("Get user profile error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
 export default router;

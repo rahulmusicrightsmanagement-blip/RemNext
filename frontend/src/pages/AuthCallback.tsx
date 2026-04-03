@@ -16,8 +16,8 @@ function AuthCallback() {
       return
     }
 
-    // Store token then do a full reload so AuthContext reinitializes from localStorage
-    localStorage.setItem('token', token)
+    // Store token then do a full reload so AuthContext reinitializes from sessionStorage
+    sessionStorage.setItem('token', token)
     window.location.replace(role === 'ADMIN' ? '/admin/dashboard' : '/user/dashboard')
   }, [])
 

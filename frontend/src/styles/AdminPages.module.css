@@ -921,13 +921,13 @@
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: var(--bg-card, #1e1a2e);
+  background: var(--bg-page);
   border: 1px solid var(--border-input);
   border-radius: 10px;
   max-height: 200px;
   overflow-y: auto;
-  z-index: 200;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 1100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
   padding: 6px;
 }
 
