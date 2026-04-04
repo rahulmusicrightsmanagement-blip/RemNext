@@ -69,9 +69,8 @@ router.put(
         street, road, city, state, country, zipCode,
         documentType, documentValue,
         resumeUrl: resumeUrlField, // URL pasted by user (if no file uploaded)
-        bankAccountName, bankAccountNumber, bankRoutingNumber, bankSwiftCode,
         paypalEmail,
-        ssnId,
+        airtmEmail,
       } = req.body;
 
       // Fetch existing profile to handle old file cleanup
@@ -127,16 +126,11 @@ router.put(
         resumeUrl = null;
       }
 
-      const isUS = (country ?? "").toLowerCase().includes("united states") ||
-        (country ?? "").toLowerCase() === "us" ||
-        (country ?? "").toLowerCase() === "usa";
-
       const isComplete = Boolean(
         phone &&
         street && city && state && country && zipCode &&
         resumeUrl &&
-        ((bankAccountName && bankAccountNumber) || paypalEmail) &&
-        (!isUS || ssnId)
+        (paypalEmail || airtmEmail)
       );
 
       const data = {
@@ -153,12 +147,8 @@ router.put(
         documentValue: documentValue ?? null,
         documentFileData: documentFileUrl,
         resumeUrl,
-        bankAccountName: bankAccountName ?? null,
-        bankAccountNumber: bankAccountNumber ?? null,
-        bankRoutingNumber: bankRoutingNumber ?? null,
-        bankSwiftCode: bankSwiftCode ?? null,
         paypalEmail: paypalEmail ?? null,
-        ssnId: ssnId ?? null,
+        airtmEmail: airtmEmail ?? null,
         isComplete,
       };
 

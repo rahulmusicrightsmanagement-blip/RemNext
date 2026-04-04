@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import styles from '../styles/Auth.module.css'
 import { api } from '../lib/api'
 
@@ -33,8 +34,8 @@ function ResetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(''); setSuccess('')
-    if (password.length < 8) { setError('Password must be at least 8 characters'); return }
-    if (password !== confirm) { setError('Passwords do not match'); return }
+    if (password.length < 8) { setError('Password must be at least 8 characters'); toast.error('Password must be at least 8 characters'); return }
+    if (password !== confirm) { setError('Passwords do not match'); toast.error('Passwords do not match'); return }
 
     setSubmitting(true)
     try {
@@ -43,9 +44,12 @@ function ResetPassword() {
         body: { token, password },
       })
       setSuccess(data.message)
+      toast.success(data.message)
       setTimeout(() => navigate('/login'), 2500)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      const msg = err instanceof Error ? err.message : 'Something went wrong'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }

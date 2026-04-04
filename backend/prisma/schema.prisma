@@ -58,12 +58,8 @@ model UserProfile {
 
   resumeUrl         String?
 
-  bankAccountName   String?
-  bankAccountNumber String?
-  bankRoutingNumber String?
-  bankSwiftCode     String?
   paypalEmail       String?
-  ssnId             String?
+  airtmEmail        String?
 
   isComplete        Boolean  @default(false)
   createdAt         DateTime @default(now())
@@ -96,6 +92,17 @@ enum ApplicationStatus {
   REJECTED
 }
 
+enum TaskProgress {
+  JUST_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+}
+
 model Application {
   id        String            @id @default(uuid())
   userId    String
@@ -103,6 +110,7 @@ model Application {
   user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   task      Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
   status             ApplicationStatus @default(PENDING)
+  taskProgress       TaskProgress      @default(JUST_STARTED)
   verificationLinks  String[]          @default([])
   mailSent           Boolean           @default(false)
   managerId          String?
@@ -122,6 +130,7 @@ model HoursLog {
   manager       User        @relation("ManagerHoursLogs", fields: [managerId], references: [id], onDelete: Cascade)
   hours         Float
   note          String?
+  paymentStatus PaymentStatus @default(PENDING)
   createdAt     DateTime    @default(now())
 }
 

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import styles from '../styles/Auth.module.css'
 import { useAuth } from '../context/AuthContext'
 
@@ -73,10 +74,12 @@ function Signup() {
     e.preventDefault()
     if (!termsAccepted) {
       setError('You must accept the Terms & Conditions to continue.')
+      toast.error('You must accept the Terms & Conditions to continue.')
       return
     }
     if (password !== confirmPassword) {
       setError('Passwords do not match')
+      toast.error('Passwords do not match')
       return
     }
     setError('')
@@ -86,7 +89,9 @@ function Signup() {
       setStep('otp')
       startResendCooldown()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send verification email')
+      const msg = err instanceof Error ? err.message : 'Failed to send verification email'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -125,6 +130,7 @@ function Signup() {
     const otp = otpDigits.join('')
     if (otp.length < 6) {
       setError('Please enter all 6 digits')
+      toast.error('Please enter all 6 digits')
       return
     }
     setError('')
@@ -133,7 +139,9 @@ function Signup() {
       const user = await verifyOtp(email, otp)
       navigate(user.role === 'ADMIN' ? '/admin/dashboard' : '/user/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Verification failed')
+      const msg = err instanceof Error ? err.message : 'Verification failed'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setVerifying(false)
     }
@@ -159,7 +167,9 @@ function Signup() {
       setOtpDigits(['', '', '', '', '', ''])
       startResendCooldown()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to resend OTP')
+      const msg = err instanceof Error ? err.message : 'Failed to resend OTP'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setResending(false)
     }

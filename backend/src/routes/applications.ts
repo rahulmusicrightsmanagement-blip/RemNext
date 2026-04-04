@@ -79,7 +79,7 @@ router.get(
             },
           },
           hoursLogs: {
-            select: { hours: true, note: true, createdAt: true },
+            select: { id: true, hours: true, note: true, paymentStatus: true, createdAt: true },
             orderBy: { createdAt: "desc" },
           },
         },
@@ -112,6 +112,48 @@ router.get(
       res.json({ applications });
     } catch (err) {
       console.error("My applications error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// GET /api/applications/all-payouts — admin: all approved applications with hours logs
+router.get(
+  "/all-payouts",
+  authenticate,
+  authorize("ADMIN"),
+  async (_req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const applications = await prisma.application.findMany({
+        where: { status: "APPROVED" },
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          task: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+              userPayment: true,
+              fullPayment: true,
+              deadline: true,
+            },
+          },
+          hoursLogs: {
+            select: { id: true, hours: true, note: true, paymentStatus: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      const projects = applications.map((a) => ({
+        ...a,
+        totalHours: a.hoursLogs.reduce((sum, l) => sum + l.hours, 0),
+      }));
+
+      res.json({ projects });
+    } catch (err) {
+      console.error("All payouts error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   }
@@ -158,7 +200,11 @@ router.get(
             select: { id: true, name: true, email: true, createdAt: true },
           },
           task: {
-            select: { id: true, name: true, manager: { select: { id: true, name: true, email: true } } },
+            select: { id: true, name: true, userPayment: true, manager: { select: { id: true, name: true, email: true } } },
+          },
+          hoursLogs: {
+            select: { id: true, hours: true, note: true, paymentStatus: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
           },
         },
       });
@@ -172,7 +218,9 @@ router.get(
         where: { userId: application.userId },
       });
 
-      res.json({ application: { ...application, verificationLinks: application.verificationLinks ?? [] }, profile });
+      const totalHours = application.hoursLogs.reduce((sum, l) => sum + l.hours, 0);
+
+      res.json({ application: { ...application, verificationLinks: application.verificationLinks ?? [], totalHours }, profile });
     } catch (err) {
       console.error("Application details error:", err);
       res.status(500).json({ error: "Internal server error" });

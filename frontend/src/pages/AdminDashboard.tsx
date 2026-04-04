@@ -15,7 +15,7 @@ interface ManagerOverview {
 const adminActions = [
   { label: 'Manage Users', desc: 'View, verify, or change roles of user accounts.', path: '/admin/users' },
   { label: 'Task Management', desc: 'Create and manage tasks assigned to freelancers.', path: '/admin/tasks' },
-  { label: 'Payout Queue', desc: 'Review and approve pending payouts.', path: '#' },
+  { label: 'Payout Queue', desc: 'Review and approve pending payouts.', path: '/admin/payouts' },
 ]
 
 function AdminDashboard() {
