@@ -213,6 +213,14 @@ router.post(
         },
       });
 
+      // Auto-update progress to IN_PROGRESS if still JUST_STARTED
+      if (application.taskProgress === "JUST_STARTED") {
+        await prisma.application.update({
+          where: { id: application.id },
+          data: { taskProgress: "IN_PROGRESS" },
+        });
+      }
+
       res.status(201).json({ log });
     } catch (err) {
       console.error("Log hours error:", err);
@@ -253,6 +261,67 @@ router.get(
       res.json({ logs, totalHours });
     } catch (err) {
       console.error("Get hours error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// PUT /api/manager/applications/:id/complete — mark application as completed
+router.put(
+  "/applications/:id/complete",
+  authenticate,
+  authorize("MANAGER"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const application = await prisma.application.findUnique({
+        where: { id: req.params.id as string },
+        include: { task: { select: { managerId: true } } },
+      });
+      if (!application) { res.status(404).json({ error: "Application not found" }); return; }
+      if (application.task.managerId !== req.authPayload!.userId) { res.status(403).json({ error: "Not your application" }); return; }
+      if (application.status !== "APPROVED") { res.status(400).json({ error: "Only approved applications can be completed" }); return; }
+
+      const updated = await prisma.application.update({
+        where: { id: application.id },
+        data: { taskProgress: "COMPLETED" },
+      });
+      res.json({ application: updated });
+    } catch (err) {
+      console.error("Complete application error:", err);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  }
+);
+
+// PUT /api/manager/hours/mark-paid — mark selected hours logs as paid
+router.put(
+  "/hours/mark-paid",
+  authenticate,
+  authorize("MANAGER"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { logIds } = req.body as { logIds: string[] };
+      if (!logIds || !Array.isArray(logIds) || logIds.length === 0) {
+        res.status(400).json({ error: "No log IDs provided" }); return;
+      }
+
+      // Verify all logs belong to manager's tasks
+      const logs = await prisma.hoursLog.findMany({
+        where: { id: { in: logIds } },
+        include: { application: { include: { task: { select: { managerId: true } } } } },
+      });
+
+      const unauthorized = logs.some(l => l.application.task.managerId !== req.authPayload!.userId);
+      if (unauthorized) { res.status(403).json({ error: "Some logs are not yours" }); return; }
+
+      await prisma.hoursLog.updateMany({
+        where: { id: { in: logIds } },
+        data: { paymentStatus: "PAID" },
+      });
+
+      res.json({ success: true, updated: logIds.length });
+    } catch (err) {
+      console.error("Mark paid error:", err);
       res.status(500).json({ error: "Internal server error" });
     }
   }

@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import Navbar from './components/Navbar'
@@ -16,6 +17,8 @@ import AdminProfile from './pages/AdminProfile'
 import ManagerProfile from './pages/ManagerProfile'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
+import UserPayouts from './pages/UserPayouts'
+import AdminPayouts from './pages/admin/AdminPayouts'
 import ProtectedRoute from './components/ProtectedRoute'
 import AuthCallback from './pages/AuthCallback'
 
@@ -24,6 +27,7 @@ function App() {
     <BrowserRouter>
       <ThemeProvider>
       <AuthProvider>
+        <Toaster position="top-right" toastOptions={{ style: { background: '#2D253C', color: '#fff', border: '1px solid rgba(213,156,250,0.3)', borderRadius: 12 } }} />
         <Navbar />
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -41,6 +45,8 @@ function App() {
           <Route path="/manager/profile" element={<ProtectedRoute role="MANAGER"><ManagerProfile /></ProtectedRoute>} />
           <Route path="/admin/profile" element={<ProtectedRoute role="ADMIN"><AdminProfile /></ProtectedRoute>} />
           <Route path="/user/projects" element={<ProtectedRoute role="USER"><BrowseProjects /></ProtectedRoute>} />
+          <Route path="/user/payouts" element={<ProtectedRoute role="USER"><UserPayouts /></ProtectedRoute>} />
+          <Route path="/admin/payouts" element={<ProtectedRoute role="ADMIN"><AdminPayouts /></ProtectedRoute>} />
         </Routes>
       </AuthProvider>
       </ThemeProvider>

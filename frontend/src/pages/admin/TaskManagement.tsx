@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { useAuth } from '../../context/AuthContext'
 import { api } from '../../lib/api'
 import styles from '../../styles/AdminPages.module.css'
@@ -57,15 +58,20 @@ interface UserProfile {
   documentType: string | null
   documentFileData: string | null
   resumeUrl: string | null
-  bankAccountName: string | null
-  bankAccountNumber: string | null
-  bankRoutingNumber: string | null
-  bankSwiftCode: string | null
   paypalEmail: string | null
+  airtmEmail: string | null
+}
+
+interface HoursLog {
+  id: string
+  hours: number
+  note: string | null
+  paymentStatus: string
+  createdAt: string
 }
 
 interface AppDetail {
-  application: Application & { task: { id: string; name: string; manager?: { id: string; name: string; email: string } }; verificationLinks: string[] }
+  application: Application & { task: { id: string; name: string; userPayment?: number; manager?: { id: string; name: string; email: string } }; verificationLinks: string[]; hoursLogs?: HoursLog[]; totalHours?: number; taskProgress?: string }
   profile: UserProfile | null
 }
 
@@ -162,6 +168,7 @@ function TaskManagement() {
     setError('')
     if (!form.name || !form.fullPayment || !form.commission || formCountries.length === 0) {
       setError('Task name, country, payment and commission are required.')
+      toast.error('Task name, country, payment and commission are required.')
       return
     }
     setSubmitting(true)
@@ -187,7 +194,9 @@ function TaskManagement() {
       setFormCountries([])
       setShowForm(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create task')
+      const msg = err instanceof Error ? err.message : 'Failed to create task'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -217,6 +226,7 @@ function TaskManagement() {
     setEditError('')
     if (!editForm.name || !editForm.fullPayment || !editForm.commission || editFormCountries.length === 0) {
       setEditError('Task name, country, payment and commission are required.')
+      toast.error('Task name, country, payment and commission are required.')
       return
     }
     setEditSubmitting(true)
@@ -240,23 +250,40 @@ function TaskManagement() {
       setTasks(prev => prev.map(t => t.id === data.task.id ? data.task : t))
       setEditTask(null)
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : 'Failed to update task')
+      const msg = err instanceof Error ? err.message : 'Failed to update task'
+      setEditError(msg)
+      toast.error(msg)
     } finally {
       setEditSubmitting(false)
     }
   }
 
-  const deleteTask = async (id: string) => {
-    if (!confirm('Delete this task?')) return
-    setDeletingId(id)
-    try {
-      await api(`/tasks/${id}`, { method: 'DELETE', token: token! })
-      setTasks(prev => prev.filter(t => t.id !== id))
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setDeletingId(null)
-    }
+  const deleteTask = (id: string) => {
+    toast((t) => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <p style={{ margin: 0, fontWeight: 600 }}>Delete this task?</p>
+        <p style={{ margin: 0, fontSize: 12, opacity: 0.7 }}>This action cannot be undone.</p>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button onClick={async () => {
+            toast.dismiss(t.id)
+            setDeletingId(id)
+            try {
+              await api(`/tasks/${id}`, { method: 'DELETE', token: token! })
+              setTasks(prev => prev.filter(tk => tk.id !== id))
+              toast.success('Task deleted')
+            } catch (e) {
+              console.error(e)
+              toast.error('Failed to delete task')
+            } finally { setDeletingId(null) }
+          }} style={{ padding: '6px 16px', borderRadius: 8, border: 'none', background: '#ef4444', color: '#fff', fontWeight: 600, cursor: 'pointer', fontSize: 12 }}>
+            Delete
+          </button>
+          <button onClick={() => toast.dismiss(t.id)} style={{ padding: '6px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: '#fff', cursor: 'pointer', fontSize: 12 }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    ), { duration: 10000 })
   }
 
   const openApplications = async (task: Task) => {
@@ -385,7 +412,7 @@ function TaskManagement() {
             <div key={task.id} className={styles.taskRow}>
               <span className={styles.taskRowNum}>{i + 1}</span>
               <span className={styles.taskRowName}>{task.name}</span>
-              <span className={styles.taskRowPay}>${task.userPayment} <em>/ person</em></span>
+              <span className={styles.taskRowPay}>${task.userPayment} <em>/ hr</em></span>
               <span className={styles.taskRowDeadline}>📅 {new Date(task.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
               <span className={styles.taskRowPay} style={{ fontSize: 13, opacity: 0.85 }}>
                 {task.manager ? `👤 ${task.manager.name}` : '—'}
@@ -423,7 +450,7 @@ function TaskManagement() {
 
               <div className={styles.viewPayRow}>
                 <div className={styles.viewPayItem}>
-                  <span>Full Payment</span>
+                  <span>Full Pay / hr</span>
                   <strong>${viewTask.fullPayment}</strong>
                 </div>
                 <div className={styles.viewPayItem}>
@@ -431,7 +458,7 @@ function TaskManagement() {
                   <strong>{viewTask.commission}%</strong>
                 </div>
                 <div className={`${styles.viewPayItem} ${styles.viewPayHighlight}`}>
-                  <span>User Receives</span>
+                  <span>User Gets / hr</span>
                   <strong>${viewTask.userPayment}</strong>
                 </div>
               </div>
@@ -558,7 +585,7 @@ function TaskManagement() {
 
                 <div className={styles.payGrid}>
                   <div className={styles.formGroup}>
-                    <label>Full Pay ($)</label>
+                    <label>Pay / hr ($)</label>
                     <input
                       type="number"
                       min="0"
@@ -583,7 +610,7 @@ function TaskManagement() {
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label>User Gets ($)</label>
+                    <label>User Gets / hr ($)</label>
                     <input readOnly value={editUserPaymentPreview} className={styles.readonlyInput} />
                   </div>
                 </div>
@@ -734,7 +761,7 @@ function TaskManagement() {
 
                 <div className={styles.payGrid}>
                   <div className={styles.formGroup}>
-                    <label>Full Pay ($)</label>
+                    <label>Pay / hr ($)</label>
                     <input
                       type="number"
                       min="0"
@@ -759,7 +786,7 @@ function TaskManagement() {
                     />
                   </div>
                   <div className={styles.formGroup}>
-                    <label>User Gets ($)</label>
+                    <label>User Gets / hr ($)</label>
                     <input readOnly value={userPaymentPreview} className={styles.readonlyInput} />
                   </div>
                 </div>
@@ -892,6 +919,15 @@ function TaskManagement() {
                     <span className={`${styles.appStatusBadge} ${statusClass(appDetail.application.status)}`}>
                       {appDetail.application.status}
                     </span>
+                    {appDetail.application.status === 'APPROVED' && appDetail.application.taskProgress && (
+                      <span style={{
+                        padding: '3px 10px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+                        background: appDetail.application.taskProgress === 'COMPLETED' ? 'rgba(74,222,128,0.15)' : appDetail.application.taskProgress === 'IN_PROGRESS' ? 'rgba(96,165,250,0.15)' : 'rgba(251,191,36,0.15)',
+                        color: appDetail.application.taskProgress === 'COMPLETED' ? '#4ade80' : appDetail.application.taskProgress === 'IN_PROGRESS' ? '#60a5fa' : '#fbbf24',
+                      }}>
+                        {appDetail.application.taskProgress === 'COMPLETED' ? 'Completed' : appDetail.application.taskProgress === 'IN_PROGRESS' ? 'In Progress' : 'Just Started'}
+                      </span>
+                    )}
                     <button className={styles.closeBtn} onClick={() => setAppDetail(null)}>✕</button>
                   </div>
                 </div>
@@ -953,22 +989,13 @@ function TaskManagement() {
                     {appDetail.application.status === 'APPROVED' && appDetail.profile && (
                       <div className={styles.adSection}>
                         <p className={styles.adSectionTitle}>Payment Details</p>
-                        {(appDetail.profile.bankAccountName || appDetail.profile.paypalEmail) ? (
+                        {(appDetail.profile.paypalEmail || appDetail.profile.airtmEmail) ? (
                           <div className={styles.appDetailGrid}>
-                            {appDetail.profile.bankAccountName && (
-                              <div className={styles.appDetailItem}><span>Account Name</span><p>{appDetail.profile.bankAccountName}</p></div>
-                            )}
-                            {appDetail.profile.bankAccountNumber && (
-                              <div className={styles.appDetailItem}><span>Account Number</span><p>{appDetail.profile.bankAccountNumber}</p></div>
-                            )}
-                            {appDetail.profile.bankRoutingNumber && (
-                              <div className={styles.appDetailItem}><span>Routing Number</span><p>{appDetail.profile.bankRoutingNumber}</p></div>
-                            )}
-                            {appDetail.profile.bankSwiftCode && (
-                              <div className={styles.appDetailItem}><span>SWIFT Code</span><p>{appDetail.profile.bankSwiftCode}</p></div>
-                            )}
                             {appDetail.profile.paypalEmail && (
-                              <div className={styles.appDetailItem}><span>PayPal Email</span><p>{appDetail.profile.paypalEmail}</p></div>
+                              <div className={styles.appDetailItem}><span>PayPal</span><p>{appDetail.profile.paypalEmail}</p></div>
+                            )}
+                            {appDetail.profile.airtmEmail && (
+                              <div className={styles.appDetailItem}><span>Airtm Email</span><p>{appDetail.profile.airtmEmail}</p></div>
                             )}
                           </div>
                         ) : (
@@ -976,6 +1003,47 @@ function TaskManagement() {
                         )}
                       </div>
                     )}
+
+                    {appDetail.application.status === 'APPROVED' && (appDetail.application.hoursLogs?.length ?? 0) > 0 && (() => {
+                      const logs = appDetail.application.hoursLogs!
+                      const totalH = logs.reduce((s, l) => s + l.hours, 0)
+                      const payrate = appDetail.application.task.userPayment ?? 0
+                      return (
+                        <div className={styles.adSection}>
+                          <p className={styles.adSectionTitle}>Hours Log</p>
+                          <div style={{ overflowX: 'auto', borderRadius: 8, border: '1px solid var(--border-color, rgba(255,255,255,0.08))' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                              <thead>
+                                <tr>
+                                  {['Date', 'Hours', 'Payrate (USD)', 'Total (USD)', 'Note', 'Payment'].map(h => (
+                                    <th key={h} style={{ background: 'var(--bg-card, #1e1a2e)', color: 'var(--text-muted)', textTransform: 'uppercase', fontSize: 11, fontWeight: 600, letterSpacing: '0.4px', padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.08))' }}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {logs.map(l => (
+                                  <tr key={l.id}>
+                                    <td style={{ padding: '9px 12px', color: 'var(--text-body)', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))' }}>{new Date(l.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                                    <td style={{ padding: '9px 12px', color: 'var(--text-body)', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))' }}>{l.hours.toFixed(2)}</td>
+                                    <td style={{ padding: '9px 12px', color: 'var(--text-body)', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))' }}>${payrate.toFixed(2)}</td>
+                                    <td style={{ padding: '9px 12px', color: 'var(--text-body)', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))' }}>${(l.hours * payrate).toFixed(2)}</td>
+                                    <td style={{ padding: '9px 12px', color: 'var(--text-body)', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))' }}>{l.note || '—'}</td>
+                                    <td style={{ padding: '9px 12px', borderBottom: '1px solid var(--border-color, rgba(255,255,255,0.04))' }}>
+                                      <span style={{
+                                        padding: '2px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600,
+                                        background: l.paymentStatus === 'PAID' ? 'rgba(74,222,128,0.15)' : 'rgba(251,191,36,0.15)',
+                                        color: l.paymentStatus === 'PAID' ? '#4ade80' : '#fbbf24',
+                                      }}>{l.paymentStatus === 'PAID' ? 'Paid' : 'Pending'}</span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Total: <strong>{totalH.toFixed(2)}h</strong> — ${(totalH * payrate).toFixed(2)}</p>
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* RIGHT — actions */}

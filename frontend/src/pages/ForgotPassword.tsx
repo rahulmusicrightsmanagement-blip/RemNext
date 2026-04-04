@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import styles from '../styles/Auth.module.css'
 import { api } from '../lib/api'
 
@@ -19,8 +20,11 @@ function ForgotPassword() {
         body: { email },
       })
       setSuccess(data.message)
+      toast.success(data.message)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      const msg = err instanceof Error ? err.message : 'Something went wrong'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }

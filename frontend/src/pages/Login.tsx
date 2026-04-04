@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import styles from '../styles/Auth.module.css'
 import { useAuth } from '../context/AuthContext'
 
@@ -35,7 +36,9 @@ function Login() {
       const user = await login(email, password)
       navigate(user.role === 'ADMIN' ? '/admin/dashboard' : '/user/dashboard')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      const msg = err instanceof Error ? err.message : 'Login failed'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }

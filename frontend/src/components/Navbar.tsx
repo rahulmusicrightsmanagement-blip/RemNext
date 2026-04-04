@@ -93,6 +93,11 @@ function Navbar() {
   return (
     <nav className={styles.navbar}>
       <Link to="/" className={styles.logo}>
+        <img
+          src={theme === 'dark' ? '/Logo/Remxt Light.svg' : '/Logo/Remxt Dark-nobg.svg'}
+          alt="RemNxt"
+          className={styles.logoIcon}
+        />
         RemNxt
       </Link>
       <div className={styles.navActions}>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { api, apiFormData } from '../lib/api'
 import styles from '../styles/Profile.module.css'
@@ -59,10 +60,8 @@ interface ProfileData {
   phone: string
   street: string; road: string; city: string; state: string; country: string; zipCode: string
   resumeUrl: string
-  bankAccountName: string; bankAccountNumber: string
-  bankRoutingNumber: string; bankSwiftCode: string
   paypalEmail: string
-  ssnId: string
+  airtmEmail: string
   isComplete: boolean
 }
 
@@ -70,8 +69,7 @@ const empty: ProfileData = {
   phoneCode: '+1', phone: '',
   street: '', road: '', city: '', state: '', country: '', zipCode: '',
   resumeUrl: '',
-  bankAccountName: '', bankAccountNumber: '', bankRoutingNumber: '', bankSwiftCode: '',
-  paypalEmail: '', ssnId: '',
+  paypalEmail: '', airtmEmail: '',
   isComplete: false,
 }
 
@@ -93,7 +91,6 @@ function CompleteProfile() {
   const [resumeFile, setResumeFile] = useState<File | null>(null)
   const [resumeFileName, setResumeFileName] = useState('')
 
-  const isUS = form.country === 'United States'
   const set = (key: keyof ProfileData, value: string | boolean) =>
     setForm(f => ({ ...f, [key]: value }))
 
@@ -101,7 +98,11 @@ function CompleteProfile() {
     api<{ profile: ProfileData | null }>('/profile', { token: token! })
       .then(d => {
         if (d.profile) {
-          setForm({ ...empty, ...d.profile })
+          // Replace nulls with empty strings so controlled inputs never receive null
+          const cleaned = Object.fromEntries(
+            Object.entries(d.profile).map(([k, v]) => [k, v ?? ''])
+          ) as ProfileData
+          setForm({ ...empty, ...cleaned })
           if (d.profile.resumeUrl) setResumeFileName(d.profile.resumeUrl)
         }
       })
@@ -113,7 +114,7 @@ function CompleteProfile() {
   const handleResumeFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    if (file.size > 5 * 1024 * 1024) { setError('Resume file must be under 5MB'); return }
+    if (file.size > 5 * 1024 * 1024) { setError('Resume file must be under 5MB'); toast.error('Resume file must be under 5MB'); return }
     setResumeFile(file)
     setResumeFileName(file.name)
     set('resumeUrl', file.name) // placeholder so validation passes
@@ -123,15 +124,14 @@ function CompleteProfile() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(''); setSuccess('')
-    if (!form.phone) { setError('Phone number is required.'); return }
+    if (!form.phone) { setError('Phone number is required.'); toast.error('Phone number is required.'); return }
     if (!form.street || !form.city || !form.state || !form.country || !form.zipCode) {
-      setError('All address fields (except Road/Area) are required.'); return
+      setError('All address fields (except Road/Area) are required.'); toast.error('All address fields (except Road/Area) are required.'); return
     }
-    if (!form.resumeUrl && !resumeFile) { setError('Resume is required — upload a file or paste a link.'); return }
-    if (!form.bankAccountName && !form.bankAccountNumber && !form.paypalEmail) {
-      setError('Please fill in at least one payment method.'); return
+    if (!form.resumeUrl && !resumeFile) { setError('Resume is required — upload a file or paste a link.'); toast.error('Resume is required — upload a file or paste a link.'); return }
+    if (!form.paypalEmail && !form.airtmEmail) {
+      setError('Please fill in at least one payment method (PayPal or Airtm).'); toast.error('Please fill in at least one payment method (PayPal or Airtm).'); return
     }
-    if (isUS && !form.ssnId) { setError('SSN is required for US residents.'); return }
 
     setSubmitting(true)
     try {
@@ -146,12 +146,8 @@ function CompleteProfile() {
       fd.append('state', form.state)
       fd.append('country', form.country)
       fd.append('zipCode', form.zipCode)
-      fd.append('bankAccountName', form.bankAccountName)
-      fd.append('bankAccountNumber', form.bankAccountNumber)
-      fd.append('bankRoutingNumber', form.bankRoutingNumber)
-      fd.append('bankSwiftCode', form.bankSwiftCode)
       fd.append('paypalEmail', form.paypalEmail)
-      fd.append('ssnId', form.ssnId)
+      fd.append('airtmEmail', form.airtmEmail)
 
       // Append resume file if selected
       if (resumeFile) {
@@ -173,9 +169,12 @@ function CompleteProfile() {
       setForm({ ...empty, ...result.profile })
 
       setSuccess('Profile saved successfully!')
+      toast.success('Profile saved successfully!')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save profile')
+      const msg = err instanceof Error ? err.message : 'Failed to save profile'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }
@@ -393,50 +392,20 @@ function CompleteProfile() {
           </div>
 
           <div className={styles.payBlock}>
-            <p className={styles.payBlockTitle}>🏦 Bank Account</p>
-            <div className={styles.grid2}>
-              <div className={styles.formGroup}>
-                <label>Account Holder Name</label>
-                <input placeholder="Full name as on bank account" value={form.bankAccountName} onChange={e => set('bankAccountName', e.target.value)} />
-              </div>
-              <div className={styles.formGroup}>
-                <label>Account Number</label>
-                <input placeholder="Enter account number" value={form.bankAccountNumber} onChange={e => set('bankAccountNumber', e.target.value)} />
-              </div>
-              {isUS ? (
-                <div className={styles.formGroup}>
-                  <label>Routing Number</label>
-                  <input placeholder="9-digit ABA routing number" value={form.bankRoutingNumber} onChange={e => set('bankRoutingNumber', e.target.value)} />
-                </div>
-              ) : (
-                <div className={styles.formGroup}>
-                  <label>SWIFT / BIC Code</label>
-                  <input placeholder="e.g. HDFC0001234" value={form.bankSwiftCode} onChange={e => set('bankSwiftCode', e.target.value)} />
-                </div>
-              )}
+            <p className={styles.payBlockTitle}>💙 PayPal</p>
+            <div className={styles.formGroup}>
+              <label>Email or PayPal.me link</label>
+              <input type="text" placeholder="your@email.com or paypal.me/yourname" value={form.paypalEmail} onChange={e => set('paypalEmail', e.target.value)} />
             </div>
           </div>
 
           <div className={styles.payBlock}>
-            <p className={styles.payBlockTitle}>💙 PayPal</p>
+            <p className={styles.payBlockTitle}>💸 Airtm</p>
             <div className={styles.formGroup}>
-              <label>PayPal Email</label>
-              <input type="email" placeholder="your@paypal.com" value={form.paypalEmail} onChange={e => set('paypalEmail', e.target.value)} />
+              <label>Account Email</label>
+              <input type="email" placeholder="your@airtm.com" value={form.airtmEmail} onChange={e => set('airtmEmail', e.target.value)} />
             </div>
           </div>
-
-          {isUS && (
-            <div className={styles.ssnBlock}>
-              <p className={styles.ssnTitle}>🇺🇸 Social Security Number (SSN)</p>
-              <div className={styles.formGroup}>
-                <label>SSN <span className={styles.required}>*</span></label>
-                <input placeholder="XXX-XX-XXXX" value={form.ssnId} onChange={e => set('ssnId', e.target.value)} />
-              </div>
-              <p className={styles.ssnNote}>
-                Required for US residents for tax reporting (W-9 compliance). Stored securely and never shared publicly.
-              </p>
-            </div>
-          )}
         </div>
 
         {error && <p className={styles.errorMsg}>{error}</p>}

@@ -16,7 +16,7 @@ function Landing() {
           powered by AI matching, secured by escrow.
         </p>
         <div className={styles.heroActions}>
-          <Link to="/signup" className={styles.btnPrimary}>Find Talent</Link>
+          <Link to="/signup" className={styles.btnPrimary}>Find Opportunity</Link>
           <Link to="/signup" className={styles.btnOutline}>Start Earning</Link>
         </div>
       </section>
@@ -79,7 +79,7 @@ function Landing() {
           <div className={styles.footerLinks}>
             <div className={styles.footerCol}>
               <p className={styles.footerColTitle}>Platform</p>
-              <p>Find Talent</p>
+              <p>Find Opportunity</p>
               <p>Find Work</p>
               <p>How It Works</p>
             </div>

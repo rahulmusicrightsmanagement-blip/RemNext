@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { api, apiFormData } from '../lib/api'
 import styles from '../styles/Profile.module.css'
@@ -71,7 +72,7 @@ function ManagerProfile() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(''); setSuccess('')
-    if (!form.phone) { setError('Phone number is required.'); return }
+    if (!form.phone) { setError('Phone number is required.'); toast.error('Phone number is required.'); return }
 
     setSubmitting(true)
     try {
@@ -90,9 +91,12 @@ function ManagerProfile() {
 
       await refreshProfile()
       setSuccess('Profile saved successfully!')
+      toast.success('Profile saved successfully!')
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save profile')
+      const msg = err instanceof Error ? err.message : 'Failed to save profile'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setSubmitting(false)
     }

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../lib/api'
 import styles from '../styles/Dashboard.module.css'
@@ -9,6 +10,7 @@ interface ManagerApp {
   userId: string
   taskId: string
   status: string
+  taskProgress: string
   mailSent: boolean
   verificationLinks: string[]
   user: { id: string; name: string; email: string }
@@ -43,7 +45,7 @@ interface UserProfile {
     phoneCode?: string; phone?: string
     street?: string; road?: string; city?: string; state?: string; country?: string; zipCode?: string
     resumeUrl?: string
-    bankAccountName?: string; paypalEmail?: string
+    paypalEmail?: string; airtmEmail?: string
     profilePhoto?: string
   } | null
 }
@@ -52,6 +54,7 @@ interface HoursLog {
   id: string
   hours: number
   note: string | null
+  paymentStatus: string
   createdAt: string
 }
 
@@ -83,24 +86,32 @@ function ManagerDashboard() {
   const [hoursSuccess, setHoursSuccess] = useState('')
   const [hoursError, setHoursError] = useState('')
 
+  // Mark paid state
+  const [paidModalOpen, setPaidModalOpen] = useState(false)
+  const [selectedLogIds, setSelectedLogIds] = useState<string[]>([])
+  const [markingPaid, setMarkingPaid] = useState(false)
+
+  const refreshDashboard = async () => {
+    if (!token) return
+    try {
+      const [dashData, appData] = await Promise.all([
+        api<DashboardStats>('/manager/dashboard', { token }),
+        api<{ applications: ManagerApp[] }>('/manager/applications', { token }),
+      ])
+      setStats(dashData)
+      setApplications(appData.applications)
+    } catch (e) { console.error(e) }
+  }
+
   useEffect(() => {
     if (!token) return
-    Promise.all([
-      api<DashboardStats>('/manager/dashboard', { token }),
-      api<{ applications: ManagerApp[] }>('/manager/applications', { token }),
-    ])
-      .then(([dashData, appData]) => {
-        setStats(dashData)
-        setApplications(appData.applications)
-      })
-      .catch(console.error)
-      .finally(() => setLoading(false))
+    refreshDashboard().finally(() => setLoading(false))
   }, [token])
 
   const handleSendVerification = async () => {
     if (!selectedApp || !token) return
     const cleanUrls = verifyUrls.filter(u => u.trim())
-    if (cleanUrls.length === 0) { setVerifyError('Add at least one URL'); return }
+    if (cleanUrls.length === 0) { setVerifyError('Add at least one URL'); toast.error('Add at least one URL'); return }
 
     setSendingVerification(true)
     setVerifyError('')
@@ -110,12 +121,15 @@ function ManagerDashboard() {
         method: 'POST', body: { urls: cleanUrls }, token,
       })
       setVerifySuccess(`Verification email sent to ${selectedApp.user.email}`)
+      toast.success(`Verification email sent to ${selectedApp.user.email}`)
       setApplications(prev => prev.map(a =>
         a.id === selectedApp.id ? { ...a, mailSent: true, verificationLinks: [...a.verificationLinks, ...cleanUrls] } : a
       ))
       setVerifyUrls([''])
     } catch (err) {
-      setVerifyError(err instanceof Error ? err.message : 'Failed to send')
+      const verifyMsg = err instanceof Error ? err.message : 'Failed to send'
+      setVerifyError(verifyMsg)
+      toast.error(verifyMsg)
     } finally {
       setSendingVerification(false)
     }
@@ -138,7 +152,7 @@ function ManagerDashboard() {
 
   const handleLogHours = async () => {
     if (!hoursApp || !token) return
-    if (!hoursInput || parseFloat(hoursInput) <= 0) { setHoursError('Enter valid hours'); return }
+    if (!hoursInput || parseFloat(hoursInput) <= 0) { setHoursError('Enter valid hours'); toast.error('Enter valid hours'); return }
 
     setLoggingHours(true)
     setHoursError('')
@@ -147,13 +161,20 @@ function ManagerDashboard() {
       const log = await api<{ log: HoursLog }>(`/manager/applications/${hoursApp.id}/hours`, {
         method: 'POST', body: { hours: parseFloat(hoursInput), note: hoursNote || undefined }, token,
       })
-      setHoursLogs(prev => [log.log, ...prev])
+      const newLog = { ...log.log, paymentStatus: log.log.paymentStatus || 'PENDING' }
+      setHoursLogs(prev => [newLog, ...prev])
       setTotalHours(prev => prev + parseFloat(hoursInput))
       setHoursInput('')
       setHoursNote('')
       setHoursSuccess('Hours logged successfully')
+      toast.success('Hours logged successfully')
+
+      // Refresh dashboard stats (task card hours) and application progress
+      refreshDashboard()
     } catch (err) {
-      setHoursError(err instanceof Error ? err.message : 'Failed to log hours')
+      const hoursMsg = err instanceof Error ? err.message : 'Failed to log hours'
+      setHoursError(hoursMsg)
+      toast.error(hoursMsg)
     } finally {
       setLoggingHours(false)
     }
@@ -171,6 +192,38 @@ function ManagerDashboard() {
   }
 
   const getTaskApps = (taskId: string) => applications.filter(a => a.taskId === taskId)
+
+  const progressBadge = (p: string) => {
+    const map: Record<string, { bg: string; color: string; label: string }> = {
+      JUST_STARTED: { bg: 'rgba(251,191,36,0.15)', color: '#fbbf24', label: 'Just Started' },
+      IN_PROGRESS: { bg: 'rgba(96,165,250,0.15)', color: '#60a5fa', label: 'In Progress' },
+      COMPLETED: { bg: 'rgba(74,222,128,0.15)', color: '#4ade80', label: 'Completed' },
+    }
+    const s = map[p] || map.JUST_STARTED
+    return <span style={{ padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600, background: s.bg, color: s.color }}>{s.label}</span>
+  }
+
+  const handleComplete = async (appId: string) => {
+    if (!token) return
+    try {
+      await api(`/manager/applications/${appId}/complete`, { method: 'PUT', token })
+      setApplications(prev => prev.map(a => a.id === appId ? { ...a, taskProgress: 'COMPLETED' } : a))
+      toast.success('Task marked as completed')
+    } catch { toast.error('Failed to complete task') }
+  }
+
+  const handleMarkPaid = async () => {
+    if (!token || selectedLogIds.length === 0) return
+    setMarkingPaid(true)
+    try {
+      await api('/manager/hours/mark-paid', { method: 'PUT', token, body: { logIds: selectedLogIds } })
+      setHoursLogs(prev => prev.map(l => selectedLogIds.includes(l.id) ? { ...l, paymentStatus: 'PAID' } : l))
+      setSelectedLogIds([])
+      setPaidModalOpen(false)
+      toast.success(`${selectedLogIds.length} log(s) marked as paid`)
+    } catch { toast.error('Failed to mark as paid') }
+    finally { setMarkingPaid(false) }
+  }
 
   if (loading) return (
     <div className={styles.page}>
@@ -261,7 +314,7 @@ function ManagerDashboard() {
                     </span>
                   )}
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 50, background: 'rgba(213,156,250,0.12)', border: '1px solid rgba(213,156,250,0.3)', color: 'var(--text-secondary)' }}>
-                    ${tc.userPayment} / person
+                    ${tc.userPayment} / hr
                   </span>
                 </div>
 
@@ -278,6 +331,7 @@ function ManagerDashboard() {
                             <th style={{ padding: '6px 10px' }}>User</th>
                             <th style={{ padding: '6px 10px' }}>Email</th>
                             <th style={{ padding: '6px 10px' }}>Status</th>
+                            <th style={{ padding: '6px 10px' }}>Progress</th>
                             <th style={{ padding: '6px 10px' }}>Mail</th>
                             <th style={{ padding: '6px 10px' }}>Actions</th>
                           </tr>
@@ -297,6 +351,9 @@ function ManagerDashboard() {
                                 }}>
                                   {app.status}
                                 </span>
+                              </td>
+                              <td style={{ padding: '8px 10px' }}>
+                                {app.status === 'APPROVED' ? progressBadge(app.taskProgress) : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>}
                               </td>
                               <td style={{ padding: '8px 10px' }}>
                                 {app.mailSent ? (
@@ -323,6 +380,12 @@ function ManagerDashboard() {
                                     <button className={adminStyles.viewBtn} style={{ fontSize: 11, padding: '4px 10px' }}
                                       onClick={() => openHoursModal(app)}>
                                       Log Hours
+                                    </button>
+                                  )}
+                                  {app.status === 'APPROVED' && app.taskProgress !== 'COMPLETED' && (
+                                    <button className={adminStyles.viewBtn} style={{ fontSize: 11, padding: '4px 10px', background: 'rgba(74,222,128,0.15)', color: '#4ade80' }}
+                                      onClick={() => handleComplete(app.id)}>
+                                      Complete
                                     </button>
                                   )}
                                 </div>
@@ -496,14 +559,14 @@ function ManagerDashboard() {
                       )}
 
                       {/* Payment */}
-                      {(viewUser.profile.bankAccountName || viewUser.profile.paypalEmail) && (
+                      {(viewUser.profile.paypalEmail || viewUser.profile.airtmEmail) && (
                         <div style={{ background: 'var(--bg-card)', borderRadius: 12, padding: '12px 16px' }}>
                           <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Payment</p>
-                          {viewUser.profile.bankAccountName && (
-                            <p style={{ margin: '0 0 2px', fontSize: 13, color: 'var(--text-body)' }}>🏦 {viewUser.profile.bankAccountName}</p>
-                          )}
                           {viewUser.profile.paypalEmail && (
-                            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-body)' }}>💙 {viewUser.profile.paypalEmail}</p>
+                            <p style={{ margin: '0 0 2px', fontSize: 13, color: 'var(--text-body)' }}>💙 {viewUser.profile.paypalEmail}</p>
+                          )}
+                          {viewUser.profile.airtmEmail && (
+                            <p style={{ margin: 0, fontSize: 13, color: 'var(--text-body)' }}>💸 {viewUser.profile.airtmEmail}</p>
                           )}
                         </div>
                       )}
@@ -526,7 +589,7 @@ function ManagerDashboard() {
       {/* Hours Log Modal */}
       {hoursApp && (
         <div className={adminStyles.overlay} onClick={() => setHoursApp(null)}>
-          <div className={adminStyles.modal} onClick={e => e.stopPropagation()}>
+          <div className={adminStyles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: 700 }}>
             <div className={adminStyles.modalHeader}>
               <h3>Log Hours — {hoursApp.user.name}</h3>
               <button className={adminStyles.closeBtn} onClick={() => setHoursApp(null)}>✕</button>
@@ -565,31 +628,109 @@ function ManagerDashboard() {
               {hoursError && <p style={{ color: '#c62828', fontSize: 12 }}>{hoursError}</p>}
               {hoursSuccess && <p style={{ color: '#43a047', fontSize: 12 }}>{hoursSuccess}</p>}
 
-              {hoursLogs.length > 0 && (
-                <div style={{ marginTop: 16, maxHeight: 200, overflowY: 'auto' }}>
-                  <table className={adminStyles.table} style={{ fontSize: 12 }}>
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Hours</th>
-                        <th>Note</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {hoursLogs.map(l => (
-                        <tr key={l.id}>
-                          <td>{new Date(l.createdAt).toLocaleDateString()}</td>
-                          <td>{l.hours.toFixed(1)}h</td>
-                          <td>{l.note || '—'}</td>
+              {hoursLogs.length > 0 && (() => {
+                const payrate = hoursApp.task.userPayment
+                const pendingLogs = hoursLogs.filter(l => l.paymentStatus === 'PENDING')
+                return (
+                  <div style={{ marginTop: 16, maxHeight: 300, overflowY: 'auto' }}>
+                    <table className={adminStyles.table} style={{ fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Hours</th>
+                          <th>Payrate (USD)</th>
+                          <th>Total (USD)</th>
+                          <th>Note</th>
+                          <th>Payment</th>
                         </tr>
+                      </thead>
+                      <tbody>
+                        {hoursLogs.map(l => (
+                          <tr key={l.id}>
+                            <td>{new Date(l.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })}</td>
+                            <td>{l.hours.toFixed(2)}</td>
+                            <td>${payrate.toFixed(2)}</td>
+                            <td>${(l.hours * payrate).toFixed(2)}</td>
+                            <td>{l.note || '—'}</td>
+                            <td>
+                              <span style={{
+                                padding: '2px 8px', borderRadius: 8, fontSize: 10, fontWeight: 600,
+                                background: l.paymentStatus === 'PAID' ? 'rgba(74,222,128,0.15)' : 'rgba(251,191,36,0.15)',
+                                color: l.paymentStatus === 'PAID' ? '#4ade80' : '#fbbf24',
+                              }}>{l.paymentStatus === 'PAID' ? 'Paid' : 'Pending'}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              })()}
+
+              {/* Totals & Mark Paid button — outside scroll */}
+              {hoursLogs.length > 0 && (() => {
+                const payrate = hoursApp.task.userPayment
+                const pendingLogs = hoursLogs.filter(l => l.paymentStatus === 'PENDING')
+                return (
+                  <div style={{ marginTop: 12 }}>
+                    <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total: <strong>{totalHours.toFixed(2)}h</strong> — ${(totalHours * payrate).toFixed(2)}</p>
+                    {pendingLogs.length > 0 && !paidModalOpen && (
+                      <button
+                        style={{ marginTop: 10, padding: '8px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #D59CFA, #58395B)', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+                        onClick={() => { setSelectedLogIds([]); setPaidModalOpen(true) }}
+                      >
+                        💰 Mark as Paid ({pendingLogs.length} pending)
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Mark Paid Selection */}
+              {paidModalOpen && (() => {
+                const pendingLogs = hoursLogs.filter(l => l.paymentStatus === 'PENDING')
+                const payrate = hoursApp.task.userPayment
+                const allSelected = pendingLogs.length > 0 && pendingLogs.every(l => selectedLogIds.includes(l.id))
+                return (
+                  <div style={{ marginTop: 14, padding: 16, background: 'var(--bg-card, #1e1a2e)', borderRadius: 12, border: '1px solid var(--border-accent)' }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 10 }}>Select logs to mark as paid</p>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-muted)', marginBottom: 8, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={allSelected} onChange={() => {
+                        setSelectedLogIds(allSelected ? [] : pendingLogs.map(l => l.id))
+                      }} />
+                      Select All ({pendingLogs.length})
+                    </label>
+                    <div style={{ maxHeight: 180, overflowY: 'auto' }}>
+                      {pendingLogs.map(l => (
+                        <label key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-body)', padding: '6px 0', cursor: 'pointer', borderBottom: '1px solid var(--border-light, rgba(255,255,255,0.04))' }}>
+                          <input type="checkbox" checked={selectedLogIds.includes(l.id)} onChange={() => {
+                            setSelectedLogIds(prev => prev.includes(l.id) ? prev.filter(x => x !== l.id) : [...prev, l.id])
+                          }} />
+                          {new Date(l.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })} — {l.hours.toFixed(2)}h — ${(l.hours * payrate).toFixed(2)}
+                        </label>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                      <button
+                        disabled={markingPaid || selectedLogIds.length === 0}
+                        onClick={handleMarkPaid}
+                        style={{ padding: '8px 20px', borderRadius: 10, border: 'none', background: selectedLogIds.length > 0 ? 'linear-gradient(135deg, #4ade80, #16a34a)' : '#555', color: '#fff', fontWeight: 600, fontSize: 13, cursor: selectedLogIds.length > 0 ? 'pointer' : 'not-allowed' }}
+                      >
+                        {markingPaid ? 'Saving...' : `✓ Mark ${selectedLogIds.length} as Paid`}
+                      </button>
+                      <button
+                        onClick={() => setPaidModalOpen(false)}
+                        style={{ padding: '8px 16px', borderRadius: 10, border: '1px solid var(--border-accent)', background: 'transparent', color: 'var(--text-body)', cursor: 'pointer', fontSize: 13 }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
             <div className={adminStyles.modalFooter}>
-              <button className={adminStyles.closeOutlineBtn} onClick={() => setHoursApp(null)}>Close</button>
+              <button className={adminStyles.closeOutlineBtn} onClick={() => { setHoursApp(null); setPaidModalOpen(false) }}>Close</button>
             </div>
           </div>
         </div>

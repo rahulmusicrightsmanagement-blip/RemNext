@@ -14,11 +14,23 @@
 }
 
 .logo {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  font-family: 'HelveticaNeue-HvCn', 'Helvetica Neue', Arial, sans-serif;
   font-size: 24px;
   font-weight: 700;
   color: var(--color-dark);
   letter-spacing: -0.5px;
+  line-height: 1;
   transition: text-shadow 0.3s;
+  text-decoration: none;
+}
+
+.logoIcon {
+  height: 28px;
+  width: auto;
+  vertical-align: bottom;
 }
 
 :global([data-theme="dark"]) .logo {
